@@ -1,0 +1,22 @@
+# Ignore everything
+*
+
+# Allow Git to descend into directories
+!*/
+
+# Keep Python files anywhere
+!*.py
+
+# Keep these essentials
+!.gitignore
+!README.md
+!LICENSE
+!docs/
+!docs/**
+
+# Exclude archived scripts
+archived/
+
+# Exclude focus-related scripts
+gui_focus.py
+focus_control.py
