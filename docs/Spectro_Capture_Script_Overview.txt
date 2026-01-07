@@ -1,0 +1,177 @@
+Spectro Capture – Script Overview (Quick Reference)
+
+=========================================
+
+This document lists the main scripts in the Spectro Capture project and briefly
+explains what each one does.
+
+This is intentionally practical, not exhaustive. It is meant as a map of the
+codebase, not API documentation.
+
+
+-------------------------------------------------
+Core entry point
+-------------------------------------------------
+
+main.py
+- Application entry point.
+- Creates the main Tkinter window.
+- Sets up shared AppContext.
+- Loads and wires together the GUI tabs.
+- Handles startup/shutdown sequencing and geometry restore.
+
+
+-------------------------------------------------
+Shared state and utilities
+-------------------------------------------------
+
+app_context.py
+- Central shared state object.
+- Holds references to connected hardware.
+- Stores configuration loaded from disk.
+- Provides shared logging callbacks.
+- Used by almost every GUI and backend module.
+
+utils.py
+- Shared helper functions.
+- Site constants (location, time handling).
+- Folder and file management.
+- Coordinate handling and slewing helpers.
+- PWI4 HTTP telescope control functions.
+- Widely used across the entire project.
+
+
+-------------------------------------------------
+GUI tabs (primary user interaction)
+-------------------------------------------------
+
+gui_sequencer.py
+- Manual capture and sequencing.
+- Set exposure parameters.
+- Take single or repeated frames.
+- Lowest-level, most direct way to take data.
+
+gui_batch.py
+- Batch page GUI.
+- Load CSV files.
+- Enable/disable targets.
+- Configure scheduling and Smart HA mode.
+- Start and monitor Batch Runner.
+
+gui_status.py
+- Centralised log display.
+- Shows high-level system messages.
+- Primary debugging aid during runs.
+
+gui_targets.py
+- Target lookup and management.
+- SIMBAD resolution and verification.
+- Manual slews for testing and setup.
+
+gui_dome.py
+- Dome control GUI.
+- Connect, home, open/close.
+- Enable/disable dome–telescope sync.
+- Manual override when needed.
+
+gui_tools.py
+- Miscellaneous utilities.
+- Calibration helpers (bias/darks).
+- Folder and file management tools.
+- One-off actions that don’t belong elsewhere.
+
+gui_guide.py
+- Guiding-related controls.
+- Interfaces with PHD2.
+- Exposes guide status and basic actions.
+- Often used during setup and debugging.
+- Includes real time log output.
+
+gui_setup.py
+- Hardware setup and configuration.
+- Camera connection and cooler control.
+- Telescope connection.
+- Persistent configuration management.
+
+
+-------------------------------------------------
+Automation and backend logic
+-------------------------------------------------
+
+batch_runner.py
+- Core automation engine.
+- Selects targets (table order or HA mode).
+- Orchestrates slews, dome sync, guiding, and captures.
+- Handles start times, stop conditions, and end-of-run actions.
+- Primary automation logic for the entire system.
+
+auto_capture.py
+- Legacy single-target automation.
+- First implementation of end-to-end capture.
+- Largely superseded by Batch Runner.
+- Retained for reference and backward compatibility.
+
+sequencer_logic.py
+- Backend logic for exposures.
+- Camera configuration.
+- FITS file creation and headers.
+- Used by Sequencer and Batch Runner.
+
+exposure.py
+- Exposure helper logic.
+- Camera exposure handling.
+- Timing and wait logic.
+- Used by higher-level sequencing code.
+
+
+-------------------------------------------------
+Guiding and PHD2 integration
+-------------------------------------------------
+
+phd2_control.py
+- High-level PHD2 control wrapper.
+- Start/stop guiding.
+- Query guiding state.
+- Used by Batch Runner and Auto Capture.
+
+dependencies/phd2client/guider.py
+- Low-level JSON-RPC client for PHD2.
+- Customised from the original reference implementation.
+- Handles direct communication with PHD2.
+- Used by phd2_control.py and related logic.
+
+
+-------------------------------------------------
+Supporting / specialised scripts
+-------------------------------------------------
+
+auto_capture_2.py
+- Experimental or transitional version of Auto Capture.
+- Used during development and testing.
+- Not part of the main execution path.
+
+scheduler.py (if present)
+- Experimental target-selection logic.
+- Used to prototype scheduling ideas.
+- Concepts later folded into Batch Runner.
+
+batch_runner_test.py / test scripts (if present)
+- Ad-hoc testing and validation.
+- Not part of normal operation.
+
+
+-------------------------------------------------
+How to read this list
+-------------------------------------------------
+
+If you want to understand the system:
+
+- Start with main.py
+- Then app_context.py and utils.py
+- Then gui_batch.py + batch_runner.py
+- Then sequencer_logic.py and exposure.py
+- Then guiding-related scripts
+
+Everything else supports those paths.
+
+End.

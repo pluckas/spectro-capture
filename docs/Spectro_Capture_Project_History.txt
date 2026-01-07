@@ -1,0 +1,256 @@
+Spectro Capture – Project History and Evolution
+
+====================================
+
+This document describes how Spectro Capture evolved over time.
+It is not a formal changelog. It is a narrative of how and why things were added,
+based on real observing needs.
+
+
+------------------------------------
+1. The beginning: a simple sequencer
+------------------------------------
+
+Spectro Capture originally started as a very simple idea:
+a GUI-based camera sequencer.
+
+At the start, the goals were minimal:
+- Connect to the camera
+- Set exposure time and number of frames
+- Save FITS files in a predictable folder structure
+- Avoid having to use multiple disconnected tools
+
+There was no automation in the modern sense.
+You manually:
+- Slewed the telescope
+- Started guiding
+- Pressed a button to take frames
+
+This early sequencer is still visible in the codebase today.
+The Sequencer tab remains the most direct, lowest-level way to take data.
+
+
+------------------------------------
+2. Adding telescope control
+------------------------------------
+
+Once the sequencer worked reliably, telescope control was added.
+
+Key motivations:
+- Reduce context switching between applications
+- Ensure slews and captures were coordinated
+- Avoid human error late at night
+
+Early telescope control:
+- Used ASCOM/COM interfaces
+- Later migrated to PlaneWave PWI4 HTTP API for reliability and consistency
+
+This marked an important shift:
+Spectro Capture was no longer just a camera tool,
+it became an observatory control application.
+
+
+------------------------------------
+3. Dome control and synchronisation
+------------------------------------
+
+The next major addition was dome control.
+
+Motivation:
+- Manual dome rotation does not scale for unattended operation
+- Slit alignment errors ruin data
+
+Dome features added:
+- Dome connect / home / open / close
+- Telescope–dome azimuth synchronisation
+- Geometry and offset handling
+- Explicit “wait until dome settles” logic
+
+A lot of effort went into getting this right,
+because dome errors are slow, noisy, and destructive to data quality.
+
+This is one of the reasons the code favours conservative logic
+over clever shortcuts.
+
+
+------------------------------------
+4. Guiding integration
+------------------------------------
+
+With slews and dome movement automated, guiding became the next bottleneck.
+
+PHD2 was chosen because:
+- It is reliable
+- It exposes a JSON-RPC interface
+- It is widely understood
+
+Initial guiding integration:
+- Start/stop guiding
+- Detect guiding state
+- Wait for stabilisation
+
+Later refinements:
+- Custom guider client code
+- Fibre-lock position saving and restoring
+- Detection of when the star is actually back on the fibre
+
+Guiding integration pushed the project from “automation” into
+“state management”, where timing and ordering became critical.
+
+Adaptive exposure logic. A LOT of work. Very proud of this.
+
+
+------------------------------------
+5. Auto Capture (first automation attempt)
+------------------------------------
+
+Auto Capture was the first attempt at real end-to-end automation.
+
+The idea:
+- Press one button
+- Slew to a target
+- Acquire a guide star
+- Restore fibre lock
+- Take science frames
+
+This worked, but had limitations:
+- It assumed a single target
+- Logic became complex and specialised
+- It was hard to extend without breaking working behaviour
+
+Auto Capture solved real problems and was used extensively,
+but over time it became clear it wasn’t the right abstraction
+for more complex observing plans.
+
+
+------------------------------------
+6. ROI-based guiding and smarter acquisition
+------------------------------------
+
+As automation increased, star acquisition failures became more visible.
+
+To improve robustness:
+- ROI-based star searches were added
+- Multiple exposure trials were introduced
+- Fallback behaviour was implemented
+
+This significantly reduced:
+- Time spent searching the full guide frame
+- False star selections
+- Long delays after slews
+
+These changes strongly influenced later Batch Runner logic,
+and are one reason Batch Runner replaced Auto Capture as the primary engine.
+
+
+------------------------------------
+7. Batch mode: scaling up
+------------------------------------
+
+The next step was obvious:
+run more than one target unattended.
+
+Batch mode started simply:
+- Load a CSV
+- Run targets in order
+- Repeat the same steps Auto Capture used
+
+Very quickly, new requirements appeared:
+- Start times
+- Skipping targets
+- Night-length awareness
+- Deciding which target to run next
+- Reference star sequencing
+
+At this point, “Batch Runner” emerged as its own concept,
+separate from Auto Capture.
+
+
+------------------------------------
+8. Smart HA scheduling
+------------------------------------
+
+Once batch runs were possible, target order mattered.
+
+Smart HA Scheduling was added to:
+- Prefer targets near the meridian
+- Avoid starting targets too late
+- Make better use of the night automatically
+
+This introduced:
+- Hour Angle calculations
+- HA windows (min/max)
+- Re-evaluation after each target
+- Twilight-based “too late to start” cutoffs
+
+This was a major architectural shift:
+the system now *decides* what to do next,
+rather than following a fixed list blindly.
+
+
+------------------------------------
+9. Supporting pages: Targets, Tools, Status, FITs viewer
+------------------------------------
+
+As the system grew, supporting pages were added.
+
+Targets page:
+- Manual target entry
+- SIMBAD lookup and verification
+- Manual slews
+- Early testing ground for coordinate handling (a lot of work)
+
+Tools page:
+- Bias / dark utilities
+- Calibration management
+- Folder helpers
+- One-off tasks that don’t belong in Batch or Sequencer
+
+Status page:
+- Centralised logging
+- Visibility into what the system is doing
+- A way to debug without attaching a debugger at night
+
+These pages exist to keep the main automation paths clean,
+and to avoid overloading Batch and Sequencer with side tasks.
+
+
+------------------------------------
+10. Consolidation: Batch Runner becomes primary
+------------------------------------
+
+Over time it became clear that:
+- Batch Runner handled more cases
+- Batch Runner logic was more robust
+- Batch Runner subsumed Auto Capture functionality
+
+As a result:
+- Auto Capture is now considered legacy
+- Batch Runner is used for multi-target and single-target runs
+- New logic is added to Batch Runner, not Auto Capture
+
+Auto Capture remains in the codebase mainly as:
+- Historical reference
+- A working but frozen path
+- A reminder of how the system evolved
+
+
+------------------------------------
+11. Philosophy going forward
+------------------------------------
+
+The project now follows a few guiding principles:
+
+- Don’t break working nights
+- Prefer explicit waits over clever assumptions
+- Logging is more important than elegance
+- Real hardware behaviour beats theoretical correctness
+- Refactoring only happens when observing allows it
+
+Spectro Capture is the result of running real hardware,
+in real conditions, over many nights.
+
+Its structure reflects that history.
+
+
+End.

@@ -1,0 +1,308 @@
+Spectro Capture – Batch Page + Batch Runner Notes (Detailed)
+
+=====================================================
+
+This document describes:
+1) The “Batch” page in the GUI (what you see and what to set)
+2) The Batch Runner behaviour (what actually happens when you press GO)
+
+This is written from the perspective of how the app is currently used in practice:
+Batch Runner is the main automation engine, even for a single target.
+
+
+-----------------------------------------------------
+1. What the Batch page is for
+-----------------------------------------------------
+
+The Batch page is the place where you:
+- Load a CSV list of targets
+- Enable/disable rows (targets) for tonight
+- Configure how targets are selected (table order vs Smart HA Scheduling)
+- Optionally set a start time (so it waits until a chosen time)
+- Start the run and monitor progress and logs
+
+The Batch Runner then loops through targets, doing the same core steps each time:
+- Slew telescope (PWI4 HTTP)
+- Wait for telescope + dome to settle
+- Acquire/confirm guide star (ROI logic)
+- Restore fibre lock position
+- Run the exposure sequence including associated reference star if present
+- Save frames to the correct nightly/run folders
+- Move to the next target
+
+
+-----------------------------------------------------
+2. Batch page: what you typically do (simple workflow)
+-----------------------------------------------------
+
+A typical night is:
+1) Open Status tab, confirm everything is connected/healthy
+2) Go to Batch tab
+3) Load the CSV
+4) (Optional) set a start time
+5) Press GO
+
+That’s it. All the “clever stuff” is inside the Batch Runner.
+
+
+-----------------------------------------------------
+3. Batch page: main areas you’ll see
+-----------------------------------------------------
+
+(Exact layout can change a little as the GUI evolves, but the ideas are stable.)
+
+
+3.1 Batch target table (the main grid)
+--------------------------------------
+
+This is the CSV loaded into a table.
+
+Common table behaviour:
+- Rows can usually be Enabled/Disabled (so you can skip targets without editing the CSV)
+- You may be able to click/select a row to inspect it
+- A “progress” indicator often looks like: [current/total] starting target “X”
+
+Key idea:
+- “Enabled” rows are candidates for tonight.
+- “Disabled” rows are ignored entirely.
+
+Important practical tip:
+- If you only want ONE target, just load the CSV and disable everything except one row.
+  Batch Runner becomes “single-target automation”.
+
+
+3.2 CSV controls (load/reload)
+------------------------------
+
+The Batch page includes a “Load CSV” button and sometimes reload/refresh options.
+
+When you load a CSV:
+- The table populates
+- The Batch Runner uses that in-memory list for its run
+
+
+3.3 Scheduling controls (Start time + Smart HA mode)
+----------------------------------------------------
+
+There are typically two independent ideas here:
+
+A) Start time (a “wait until” time):
+- If set, the Batch Runner will NOT start any targets until that time arrives.
+- Useful if you set the system up at dusk and want it to begin later automatically.
+- If blank, it starts immediately when you press GO.
+
+B) Target selection mode:
+- Normal / table order (conventional mode)
+- Smart HA Scheduling (HA mode)
+
+They can be used together:
+- Example: “wait until 12:00 UTC, then choose the best HA target repeatedly.”
+
+
+3.4 Optional shutdown / end-of-run actions (“Optional Functions”)
+-----------------------------------------------------------------
+
+Depending on your current build, there may be checkboxes for “end-of-run” actions like:
+- Park telescope
+- Stop guiding
+- Close dome / park dome
+- Warm camera / cooler off
+- Etc.
+
+These are optional because not every run ends the same way:
+- Sometimes you want the system left running for manual work
+- Sometimes you want it to safely shut down unattended
+
+
+3.5 Log output / status indicators
+----------------------------------
+
+The Batch page usually shows:
+- A live log stream (important events only, not noisy polling)
+- Key status indicators (camera/telescope/dome/guiding)
+
+In practice:
+- The log is the truth. If anything seems “stuck”, check the last few lines.
+
+
+-----------------------------------------------------
+4. CSV format expectations (practical)
+-----------------------------------------------------
+
+CSV files are the input to the Batch Runner.
+
+The exact columns depend on your setup and the current code, but the Batch Runner
+generally expects at least:
+- Target name (SIMBAD-resolvable name) OR explicit coordinates
+- Exposure settings (exposure seconds, number of frames)
+- Optional: filters / notes / enabled flag / start time per target, etc.
+
+Most important rule:
+- The name should be something SIMBAD can resolve reliably (e.g. “HD 59281”,
+  “AG Car”, “eta Cen”, etc.).
+
+If your CSV includes per-row “start time” fields:
+- Those may be honoured in conventional mode (depending on your current code)
+- HA mode usually overrides “order” but still respects global stop/late-start logic
+
+
+-----------------------------------------------------
+5. Conventional mode vs Smart HA Scheduling (HA mode)
+-----------------------------------------------------
+
+5.1 Conventional mode (table order)
+-----------------------------------
+
+Conventional mode means:
+- The Batch Runner runs enabled targets in the order shown in the table.
+- If per-row start times are supported in your build, it may wait for each row’s start time.
+- When it finishes the last enabled row, it performs any selected end-of-run actions.
+
+This mode is simplest and most predictable:
+- If you want strict order, use this.
+- If you are debugging, use this.
+
+
+5.2 Smart HA Scheduling (HA mode)
+---------------------------------
+
+HA mode means:
+- It does NOT simply run down the list.
+- It repeatedly chooses the “best” enabled target based on hour angle (HA)
+  and whatever rule the scheduler currently implements.
+
+Typical HA concepts:
+- HA = 0 is the meridian
+- Negative HA = target is east of the meridian (hasn’t crossed yet)
+- Positive HA = target is west of the meridian (already crossed)
+
+The Batch Runner:
+- Evaluates enabled targets
+- Computes HA for each
+- Filters to the allowed HA window (min/max)
+- Picks the “best” one according to the current rule
+- Runs it
+- Repeats until no eligible targets remain (or it becomes too late to start a new one)
+
+Important detail:
+- The scheduler re-evaluates AFTER each target.
+  So if a target becomes eligible later, it can be chosen on a subsequent loop.
+
+
+-----------------------------------------------------
+6. Twilight / “too late to start” cutoff (HA mode)
+-----------------------------------------------------
+
+In HA mode, the runner usually has a rule like:
+- “Don’t start a new science target after a certain latest-start time.”
+
+This “latest start” is normally derived from:
+- Nautical twilight (Sun = -12° rising), minus a safety margin (e.g. 60 minutes)
+
+Meaning:
+- If it’s too late to START another target safely, Batch Runner ends the run
+  (it doesn’t begin a new target, even if targets remain enabled).
+
+This is there to prevent the system from starting something that won’t finish
+before the sky becomes unusable.
+
+
+-----------------------------------------------------
+7. What happens when you press GO (Batch Runner flow)
+-----------------------------------------------------
+
+At a high level, pressing GO triggers a loop like this:
+
+A) Initial checks
+- Confirm the Batch Runner has a target list loaded
+- Confirm required subsystems are connected (as much as the code enforces)
+
+B) Optional “wait until start time”
+- If a start time is set, it waits in a quiet loop until that time arrives
+
+C) Main loop (repeat per target)
+For each chosen target:
+1. Log “Starting target X” with progress counters
+2. Resolve the target coordinates (typically via SIMBAD)
+   - Proper motion handling may always be enabled for Batch Runner depending on your setup
+3. Slew telescope via PWI4 HTTP
+4. Wait for telescope slew completion
+5. Dome sync:
+   - If sync is enabled, rotate dome to match telescope azimuth
+   - Wait until dome is done moving (settle logic)
+6. Start/confirm guider looping
+7. ROI star acquisition:
+   - Try to find a star in the configured ROI first
+   - If that fails, fall back (depending on current logic)
+8. Restore fibre lock position
+9. Wait for star to settle near fibre (if enabled in your build)
+10. Run the exposure sequence:
+   - Take N frames of X seconds (or whatever the row specifies)
+   - Save FITS with correct naming and headers
+   - Update viewer/status where applicable
+11. Mark target as completed (in memory for this run)
+12. Move to next target selection (or finish)
+
+D) End-of-run actions
+- If enabled, perform shutdown tasks (park, guiding stop, cooler changes, etc.)
+
+
+-----------------------------------------------------
+8. Where files go (data organisation)
+-----------------------------------------------------
+
+The Batch Runner normally creates a nightly folder structure such as:
+- Year folder
+- Night folder (date-coded)
+- Per-target folder
+- run_1, run_2, etc.
+- calib folder handling may be involved depending on your current system
+
+The intent is:
+- Everything from one run is reproducible and grouped
+- Calibs can be copied/linked forward where needed
+- FITS naming stays consistent and safe for external pipelines
+
+
+-----------------------------------------------------
+9. Troubleshooting / common failure points
+-----------------------------------------------------
+
+If something fails, the log usually tells you where it stopped. Typical issues:
+
+9.1 “No targets in HA window”
+- In HA mode the runner may park and wait, then re-check after a delay.
+- This is normal if everything is outside the HA bounds at that moment.
+
+9.2 Cannot resolve target name
+- SIMBAD name mismatch or typo
+- Fix the CSV target name
+
+9.3 Slew completes but guiding fails
+- Star not in ROI (or guide camera not looping)
+- ROI box too tight for the current pointing model
+- If this happens often, expand ROI or adjust where it is centred
+
+9.4 Dome lag / not settling
+- Dome may still be moving
+- Check dome connection, sync setting, and whether the settle logic is waiting correctly
+
+9.5 PHD2 not responding
+- PHD2 not running, wrong profile, or JSON-RPC connection issues
+- Restart PHD2 and re-run
+
+
+-----------------------------------------------------
+10. Practical tips
+-----------------------------------------------------
+
+- Use Batch Runner for everything, including “single target” nights.
+- Keep CSV names SIMBAD-friendly and consistent.
+- If you are testing new guiding logic, use conventional mode first.
+- Watch the log. If it’s quiet for too long, it’s usually waiting for a condition
+  (start time, HA eligibility, slew completion, dome settle, guider settle).
+- If something goes wrong mid-run, stop cleanly, reset the hardware state
+  (guiding stopped, telescope not slewing, dome not slewing), then re-run.
+
+
+End.
