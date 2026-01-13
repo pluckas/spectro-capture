@@ -301,7 +301,18 @@ def run_batch(context, rows):
                         context.log(
                             f"⚠️ Reference target failed for '{target}' (ref '{ref.get('name','')}'): {e}"
                         )
-
+                
+                    # ===== BEGIN FIX: HA-mode terminal exit after reference =====
+                    if smart_mode:
+                        remaining = sum(
+                            1 for b in blocks
+                            if b.get("enabled", True) and not b.get("completed", False)
+                        )
+                        if remaining == 0:
+                            context.log("✅ All enabled targets completed (HA mode) — ending batch.")
+                            break
+                    # ===== END FIX =====
+                
                 # Mark complete
                 block["completed"] = True
                 context.log(f"✅ Target '{target}' complete.")
