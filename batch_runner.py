@@ -81,10 +81,9 @@ def adaptive_exposure_loop(g, context):
 
     while not context.adaptive_stop.is_set():
         try:
-            if g.AppState in ("Paused", "Stopped", "Calibrating"):
-                context.guide_log("Guiding paused — suspending adaptive exposure adjustments.")
-                time.sleep(2.0)
-                continue
+            # End-of-target state — guiding lifecycle is over
+            if g.AppState == "Stopped":
+                break
 
             star_mass = getattr(g, "StarMass", 0.0)
             hfd = getattr(g, "HFD", 2.5)
@@ -742,10 +741,8 @@ def run_reference_target(context, ref_name, exp_s, frames):
 # ---------------------------------------------------------------------------
 def run_single_target(context, target_name, exp_s, frames, include_calibs=True):
     # STOP is owned by the batch controller, not per-target execution.
-    if not hasattr(context, "adaptive_stop"):
-        context.adaptive_stop = threading.Event()
-    else:
-        context.adaptive_stop.clear()
+    # Adaptive exposure is strictly per-target
+    context.adaptive_stop = threading.Event()
 
     # Dual-range exposure flag
     context.on_fibre = False
@@ -880,6 +877,7 @@ def run_single_target(context, target_name, exp_s, frames, include_calibs=True):
             try:
                 stop_guiding(context)
                 context.guide_log("PHD2 guiding session ended.")
+                context.guide_log("")  # separator between targets in Guide log
             except Exception as e:
                 context.log(f"Could not stop guiding: {e}")
 
