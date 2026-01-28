@@ -835,6 +835,11 @@ def run_single_target(context, target_name, exp_s, frames, include_calibs=True):
         # --------------------------------------------------
         guiding_ok = True
         if guide:
+            # --- NEW: disk guide-log header per target ---
+            context.guide_log("")
+            context.guide_log(f"===== GUIDE START: {target_name} =====")
+            context.guide_log("")
+        
             guiding_ok = _run_guiding_phase(context, guide)
         else:
             context.guide_log("No guider available — skipping PHD2 actions.")
