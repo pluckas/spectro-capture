@@ -139,6 +139,9 @@ class AppContext:
         # Logging (Status tab will set this)
         self._log_callback = None
         
+        # --- Optional disk-backed Guide log (post-night analysis only) ---
+        self._guide_log_fh = None
+        
         # --- Global control flags (for Stop / Abort handling) ---
         import threading
         self.stop_requested = threading.Event()   # master Stop flag (set by Stop button)
@@ -187,13 +190,21 @@ class AppContext:
             if hasattr(self, "_guide_log_callback") and self._guide_log_callback:
                 self._guide_log_callback(msg)
     
-            # --- suppress adaptive / control-loop noise from disk log only ---
+            # --- write full guide log to disk (timestamped, post-night use) ---
+            self._open_guide_log_file()
+            if self._guide_log_fh:
+                ts = datetime.now().strftime("%H:%M:%S")
+                try:
+                    self._guide_log_fh.write(f"{ts} {msg}\n")
+                except Exception:
+                    pass
+    
+            # --- suppress adaptive / control-loop noise from *status* log only ---
             NOISY_GUIDE_STRINGS = (
                 "Adaptive exposure",
                 "Exposure Locked",
                 "Increasing exposure",
                 "Decreasing exposure",
-                "Guiding paused",
             )
     
             for s in NOISY_GUIDE_STRINGS:
@@ -220,7 +231,27 @@ class AppContext:
 
     def save_config(self):
         save_config(self.cfg)
+        
+    def _open_guide_log_file(self):
+        if self._guide_log_fh:
+            return
     
+        try:
+            os.makedirs(LOG_DIR, exist_ok=True)
+            path = os.path.join(
+                LOG_DIR, f"spectro_{self.log_date_str}_guide.log"
+            )
+            self._guide_log_fh = open(path, "a", encoding="utf-8")
+        except Exception:
+            self._guide_log_fh = None
+    
+    def flush_guide_log(self):
+        if self._guide_log_fh:
+            try:
+                self._guide_log_fh.flush()
+            except Exception:
+                pass
+                     
     # --- NEW: setter for user-selected root path --------------------------
     def set_root_path(self, path: str):
         """Set and persist the user-selected image root path."""

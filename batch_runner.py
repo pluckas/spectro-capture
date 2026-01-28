@@ -878,6 +878,7 @@ def run_single_target(context, target_name, exp_s, frames, include_calibs=True):
                 stop_guiding(context)
                 context.guide_log("PHD2 guiding session ended.")
                 context.guide_log("")  # separator between targets in Guide log
+                context.flush_guide_log()
             except Exception as e:
                 context.log(f"Could not stop guiding: {e}")
 
