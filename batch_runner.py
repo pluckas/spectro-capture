@@ -844,6 +844,9 @@ def run_single_target(context, target_name, exp_s, frames, include_calibs=True):
             context.log(f"❌ Guiding failed for {target_name} — skipping science imaging.")
             try:
                 stop_guiding(context)
+                context.guide_log("❌ Guiding session ended (failure).")
+                context.guide_log("")
+                context.flush_guide_log()
             except Exception:
                 pass
             return
