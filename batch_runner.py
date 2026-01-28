@@ -755,8 +755,6 @@ def run_single_target(context, target_name, exp_s, frames, include_calibs=True):
             context.log("Sequencer tab not available — aborting.")
             return
 
-        context.log(f"===== Starting Auto Capture for {target_name} =====")
-
         # --------------------------------------------------
         # Inject target parameters into Sequencer FIRST
         # --------------------------------------------------
