@@ -199,6 +199,11 @@ class AppContext:
                 except Exception:
                     pass
     
+            # --- suppress EMPTY guide messages from STATUS log only ---
+            if not msg.strip():
+                return
+    
+            # --- suppress adaptive / structural guide noise from STATUS log only ---
             NOISY_GUIDE_STRINGS = (
                 "Adaptive exposure",
                 "Exposure Locked",
@@ -211,7 +216,7 @@ class AppContext:
                 if s in msg:
                     return
     
-            # --- observing-night log file ---
+            # --- observing-night STATUS log ---
             os.makedirs(LOG_DIR, exist_ok=True)
             log_name = os.path.join(
                 LOG_DIR, f"spectro_{self.log_date_str}.log"
