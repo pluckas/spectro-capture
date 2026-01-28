@@ -199,12 +199,12 @@ class AppContext:
                 except Exception:
                     pass
     
-            # --- suppress adaptive / control-loop noise from *status* log only ---
             NOISY_GUIDE_STRINGS = (
                 "Adaptive exposure",
                 "Exposure Locked",
                 "Increasing exposure",
                 "Decreasing exposure",
+                "===== GUIDE START:",
             )
     
             for s in NOISY_GUIDE_STRINGS:
