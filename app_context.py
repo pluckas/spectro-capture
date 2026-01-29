@@ -159,8 +159,12 @@ class AppContext:
         """Register a function (usually from Status tab) to receive log messages."""
         self._log_callback = callback
 
+    # --- Explicit STATUS entry point ---------------------------------------
+    def log_status(self, msg):
+        self.log(msg)
+    
     def log(self, msg):
-        """Safely send a message to the shared log, console, and daily log file."""
+        """Safely send a STATUS message to UI and nightly log."""
         try:
             if self._log_callback:
                 self._log_callback(msg)
@@ -184,6 +188,10 @@ class AppContext:
         """Register a function (usually from Guide tab) to receive guider log messages."""
         self._guide_log_callback = callback
     
+    # --- Explicit GUIDE entry point (no behaviour change) -------------------
+    def log_guide(self, msg):
+        self.guide_log(msg)
+    
     def guide_log(self, msg):
         try:
             # Always show everything in the Guide tab (run-time UI)
@@ -198,33 +206,6 @@ class AppContext:
                     self._guide_log_fh.write(f"{ts} {msg}\n")
                 except Exception:
                     pass
-    
-            # --- suppress EMPTY guide messages from STATUS log only ---
-            if not msg.strip():
-                return
-    
-            # --- suppress adaptive / structural guide noise from STATUS log only ---
-            NOISY_GUIDE_STRINGS = (
-                "Adaptive exposure",
-                "Exposure Locked",
-                "Increasing exposure",
-                "Decreasing exposure",
-                "===== GUIDE START:",
-            )
-    
-            for s in NOISY_GUIDE_STRINGS:
-                if s in msg:
-                    return
-    
-            # --- observing-night STATUS log ---
-            os.makedirs(LOG_DIR, exist_ok=True)
-            log_name = os.path.join(
-                LOG_DIR, f"spectro_{self.log_date_str}.log"
-            )
-    
-            ts = datetime.now().strftime("%H:%M:%S")
-            with open(log_name, "a", encoding="utf-8") as f:
-                f.write(f"{ts} [GUIDE] {msg}\n")
     
         except Exception:
             pass
