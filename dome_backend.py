@@ -29,6 +29,11 @@ Key features:
 - Designed for southern-hemisphere equatorial systems (e.g., PlaneWave L-350)
 """
 
+import threading
+import time
+import math
+import pythoncom
+import win32com.client
 import numpy as np
 
 # ---------------------------------------------------------------------------
