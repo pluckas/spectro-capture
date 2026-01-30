@@ -29,12 +29,18 @@ Key features:
 - Designed for southern-hemisphere equatorial systems (e.g., PlaneWave L-350)
 """
 
-import threading
-import time
-import math
-import pythoncom
-import win32com.client
 import numpy as np
+
+# ---------------------------------------------------------------------------
+# Shutter status lookup (used by GUI / Dome tab)
+# ---------------------------------------------------------------------------
+SHUTTER_STATUS = {
+    0: "Open",
+    1: "Closed",
+    2: "Opening",
+    3: "Closing",
+    4: "Error",
+}
 
 # ---------------------------------------------------------------------------
 # Shutter safety helper (unattended operation)
