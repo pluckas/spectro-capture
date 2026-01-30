@@ -36,14 +36,37 @@ import pythoncom
 import win32com.client
 import numpy as np
 
-# Status lookup for dome shutter
-SHUTTER_STATUS = {
-    0: "Open",
-    1: "Closed",
-    2: "Opening",
-    3: "Closing",
-    4: "Error"
-}
+# ---------------------------------------------------------------------------
+# Shutter safety helper (unattended operation)
+# ---------------------------------------------------------------------------
+def is_shutter_closed(dome) -> bool:
+    """
+    Return True if the dome shutter is CLOSED or in ERROR state.
+    Safe for unattended batch operation.
+
+    ASCOM ShutterStatus:
+        0 = Open
+        1 = Closed
+        2 = Opening
+        3 = Closing
+        4 = Error
+    """
+    if not dome:
+        return False
+
+    try:
+        if not getattr(dome, "Connected", False):
+            return False
+
+        status = getattr(dome, "ShutterStatus", None)
+        if status is None:
+            return False
+
+        # CLOSED or ERROR → unsafe
+        return status in (1, 4)
+
+    except Exception:
+        return False
 
 # Constants for sync
 SLEW_THRESHOLD = 1.0

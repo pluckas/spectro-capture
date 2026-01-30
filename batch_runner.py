@@ -42,6 +42,7 @@ from phd2_control import (
 )
 
 from utils import hour_angle_hours, resolve_target_simbad
+from dome_backend import is_shutter_closed
 
 
 # --- ROI / ADAPTIVE EXPOSURE CONFIG ----------------------------------------
@@ -149,6 +150,17 @@ def adaptive_exposure_loop(g, context):
 
     print("Adaptive exposure thread ending.")
 
+def _check_dome_safety_or_abort(context, where: str) -> bool:
+    """
+    Batch Runner unattended safety interlock.
+    If dome shutter is CLOSED → abort batch.
+    """
+    dome = getattr(context, "dome", None)
+    if is_shutter_closed(dome):
+        context.log(f"🚨 SAFETY STOP: Dome shutter CLOSED ({where}) — aborting batch.")
+        context.stop_requested.set()
+        return True
+    return False
 
 # ---------------------------------------------------------------------------
 # Batch public entrypoint
@@ -201,6 +213,8 @@ def run_batch(context, rows):
                         f"⏳ Scheduler enabled — waiting until {start_utc.strftime('%H:%M')} UTC to begin."
                     )
                     while datetime.now(timezone.utc) < start_utc:
+                        if _check_dome_safety_or_abort(context, "scheduler start wait"):
+                            return
                         if context.stop_requested.is_set():
                             context.log("🛑 Stop requested during scheduler wait — aborting batch.")
                             return
@@ -209,10 +223,12 @@ def run_batch(context, rows):
             # ===== END FIX =====
             
             while True:
+                if _check_dome_safety_or_abort(context, "main batch loop"):
+                    break
+            
                 if context.stop_requested.is_set():
                     context.log("🛑 Stop requested — aborting batch.")
                     break
-
 
                 # --- HA mode: stop starting new targets after twilight cutoff ---
                 if smart_mode:
@@ -553,6 +569,8 @@ def _next_ha_block(context, blocks, ha_min, ha_max):
                 context.log(f"⚠️ PWI4 Park failed during HA wait: {e}")
     
         for _ in range(12):
+            if _check_dome_safety_or_abort(context, "HA wait"):
+                return {"_action": "STOP"}
             if context.stop_requested.is_set():
                 context.log("🛑 Stop requested during HA wait — aborting batch.")
                 return {"_action": "STOP"}
@@ -580,9 +598,14 @@ def _wait_until_target_start_utc(context, hhmm_ut, target_name):
 
         context.log(f"⏳ Waiting until {hhmm_ut} UT before starting '{target_name}'...")
         while datetime.now(timezone.utc) < scheduled:
+
+            if _check_dome_safety_or_abort(context, "conventional start-time wait"):
+                return False
+
             if context.stop_requested.is_set():
                 context.log("🛑 Stop requested during schedule wait.")
                 return False
+
             time.sleep(10)
 
         context.log(f"▶️ Start time reached ({hhmm_ut} UT) — beginning '{target_name}'.")
@@ -591,7 +614,6 @@ def _wait_until_target_start_utc(context, hhmm_ut, target_name):
     except Exception as e:
         context.log(f"⚠️ Invalid start time '{hhmm_ut}': {e} — running immediately.")
         return True
-
 
 def _maybe_park_for_idle_gap_before_next_scheduled(context, blocks, next_idx):
     """
@@ -634,10 +656,12 @@ def _maybe_park_for_idle_gap_before_next_scheduled(context, blocks, next_idx):
             context.log(f"⚠️ PWI4 Park failed: {e}")
 
         while datetime.now(timezone.utc) < scheduled:
+            if _check_dome_safety_or_abort(context, "conventional start-time wait"):
+                return False
             if context.stop_requested.is_set():
-                context.log("🛑 Stop requested during idle-wait.")
-                return
-            time.sleep(5)
+                context.log("🛑 Stop requested during schedule wait.")
+                return False
+            time.sleep(10)
 
         context.log(f"⏩ Start time reached ({next_start} UT). Continuing to next target.")
 
@@ -743,6 +767,9 @@ def run_single_target(context, target_name, exp_s, frames, include_calibs=True):
     # STOP is owned by the batch controller, not per-target execution.
     # Adaptive exposure is strictly per-target
     context.adaptive_stop = threading.Event()
+    
+    if _check_dome_safety_or_abort(context, "before target start"):
+        return
 
     # Dual-range exposure flag
     context.on_fibre = False
@@ -915,7 +942,6 @@ def _inject_target_into_sequencer(context, seq, target_name, exp_s, frames):
     except Exception as e:
         context.log(f"⚠️ Could not inject target parameters into Sequencer: {e}")
 
-
 def _wait_for_settle(context):
     try:
         context.log("Waiting for telescope and dome to settle before guiding...")
@@ -924,6 +950,10 @@ def _wait_for_settle(context):
         start_time = time.time()
 
         while time.time() - start_time < 180:
+
+            if _check_dome_safety_or_abort(context, "settle wait"):
+                return
+
             tel_slewing = bool(getattr(getattr(context, "telescope", None), "Slewing", False))
             dome_slewing = bool(getattr(getattr(context, "dome", None), "Slewing", False))
 
@@ -948,7 +978,6 @@ def _wait_for_settle(context):
         context.log("✅ Telescope and dome settled.")
     except Exception as e:
         context.log(f"⚠️ Settle wait check failed: {e}")
-
 
 def _run_guiding_phase(context, guide):
     try:
