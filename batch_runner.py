@@ -153,13 +153,37 @@ def adaptive_exposure_loop(g, context):
 def _check_dome_safety_or_abort(context, where: str) -> bool:
     """
     Batch Runner unattended safety interlock.
-    If dome shutter is CLOSED → abort batch.
+    If dome shutter is CLOSED or ERROR twice in a row → abort batch.
     """
     dome = getattr(context, "dome", None)
-    if is_shutter_closed(dome):
-        context.log(f"🚨 SAFETY STOP: Dome shutter CLOSED ({where}) — aborting batch.")
+
+    # Track consecutive unsafe shutter states on the context
+    if not hasattr(context, "_shutter_unsafe_count"):
+        context._shutter_unsafe_count = 0
+
+    status = None
+    try:
+        if dome and getattr(dome, "Connected", False):
+            status = getattr(dome, "ShutterStatus", None)
+    except Exception:
+        status = None
+
+    unsafe = is_shutter_closed(dome)
+
+    if unsafe:
+        context._shutter_unsafe_count += 1
+    else:
+        context._shutter_unsafe_count = 0
+
+    # Require two consecutive unsafe reads before aborting
+    if context._shutter_unsafe_count >= 2:
+        context.log(
+            f"🚨 SAFETY STOP: Dome shutter unsafe "
+            f"(ASCOM status={status}, {where}) — aborting batch."
+        )
         context.stop_requested.set()
         return True
+
     return False
 
 # ---------------------------------------------------------------------------
@@ -170,9 +194,13 @@ def run_batch(context, rows):
     def batch_worker():
         total_rows = len(rows)
         context.log(f"🚀 Batch run started ({total_rows} rows)")
-    
+        
         # ===== BEGIN FIX: reset scheduler pre-cal flag per batch run =====
         context._scheduler_precal_done = False
+        # ===== END FIX =====
+        
+        # ===== BEGIN FIX: reset shutter safety debounce =====
+        context._shutter_unsafe_count = 0
         # ===== END FIX =====
     
         first_target_started = False
