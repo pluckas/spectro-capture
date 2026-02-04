@@ -257,6 +257,16 @@ def run_batch(context, rows):
                     context.log(
                         f"⏳ Scheduler enabled — waiting until {start_utc.strftime('%H:%M')} UTC to begin."
                     )
+            
+                    # ===== BEGIN FIX: park telescope during scheduler wait =====
+                    try:
+                        from utils import park_pwi4
+                        context.log("🅿️ Parking telescope before scheduler start wait.")
+                        park_pwi4()
+                    except Exception as e:
+                        context.log(f"⚠️ PWI4 Park failed before scheduler wait: {e}")
+                    # ===== END FIX =====
+            
                     while datetime.now(timezone.utc) < start_utc:
                         if _check_dome_safety_or_abort(context, "scheduler start wait"):
                             return
@@ -264,6 +274,7 @@ def run_batch(context, rows):
                             context.log("🛑 Stop requested during scheduler wait — aborting batch.")
                             return
                         time.sleep(10)
+            
                     context.log("▶️ Scheduler start time reached — entering HA loop.")
             # ===== END FIX =====
             
@@ -642,6 +653,16 @@ def _wait_until_target_start_utc(context, hhmm_ut, target_name):
             return True
 
         context.log(f"⏳ Waiting until {hhmm_ut} UT before starting '{target_name}'...")
+        
+        # ===== BEGIN FIX: park telescope during conventional start wait =====
+        try:
+            from utils import park_pwi4
+            context.log("🅿️ Parking telescope before conventional start wait.")
+            park_pwi4()
+        except Exception as e:
+            context.log(f"⚠️ PWI4 Park failed before conventional start wait: {e}")
+        # ===== END FIX =====
+        
         while datetime.now(timezone.utc) < scheduled:
 
             if _check_dome_safety_or_abort(context, "conventional start-time wait"):
