@@ -177,14 +177,27 @@ def _check_dome_safety_or_abort(context, where: str) -> bool:
 
     # Require two consecutive unsafe reads before aborting
     if context._shutter_unsafe_count >= 2:
+    
+        # ===== BEGIN FIX: park telescope on weather/shutter abort =====
+        if not hasattr(context, "_weather_park_done"):
+            context._weather_park_done = False
+    
+        if not context._weather_park_done:
+            try:
+                from utils import park_pwi4
+                context.log("🅿️ Weather safety stop — parking telescope via PWI4.")
+                park_pwi4()
+                context._weather_park_done = True
+            except Exception as e:
+                context.log(f"⚠️ Weather safety stop: PWI4 park failed: {e}")
+        # ===== END FIX =====
+    
         context.log(
             f"🚨 SAFETY STOP: Dome shutter unsafe "
             f"(ASCOM status={status}, {where}) — aborting batch."
         )
         context.stop_requested.set()
         return True
-
-    return False
 
 # ---------------------------------------------------------------------------
 # Batch public entrypoint
@@ -201,6 +214,10 @@ def run_batch(context, rows):
         
         # ===== BEGIN FIX: reset shutter safety debounce =====
         context._shutter_unsafe_count = 0
+        # ===== END FIX =====
+        
+        # ===== BEGIN FIX: reset weather park latch =====
+        context._weather_park_done = False
         # ===== END FIX =====
     
         first_target_started = False
