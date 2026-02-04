@@ -27,8 +27,6 @@ HA mode ("smart mode"):
       "latest start" = (nautical twilight rising UTC) - 60 minutes.
 
 There is NO batch stop-time concept anywhere in this file.
-
-Author: Adapted directly from working auto_capture.py
 """
 
 import threading
@@ -41,7 +39,12 @@ from phd2_control import (
     stop_guiding,
 )
 
-from utils import hour_angle_hours, resolve_target_simbad
+from utils import (
+    hour_angle_hours,
+    resolve_target_simbad,
+    nautical_dawn_utc,
+)
+
 from dome_backend import is_shutter_closed
 
 
@@ -54,9 +57,8 @@ MAX_PROXY = 65000
 # ---------------------------------------------------------------------------
 # Twilight cutoff helpers
 # ---------------------------------------------------------------------------
-from utils import nautical_dawn_utc
 
-def _get_nautical_twilight_rising_utc(context):
+def _get_nautical_twilight_rising_utc():
     dt = nautical_dawn_utc()
     if dt and dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
@@ -68,7 +70,7 @@ def _latest_science_start_utc(context):
     Latest time (UTC) we are allowed to START a new science target in HA mode.
     Rule: latest_start = nautical_twilight_rising_utc - 60 minutes.
     """
-    tw_utc = _get_nautical_twilight_rising_utc(context)
+    tw_utc = _get_nautical_twilight_rising_utc()
     if not tw_utc:
         return None
     return tw_utc - timedelta(minutes=60)
@@ -178,7 +180,7 @@ def _check_dome_safety_or_abort(context, where: str) -> bool:
     # Require two consecutive unsafe reads before aborting
     if context._shutter_unsafe_count >= 2:
     
-        # ===== BEGIN FIX: park telescope on weather/shutter abort =====
+        # --- Park telescope on confirmed shutter / weather safety abort ---
         if not hasattr(context, "_weather_park_done"):
             context._weather_park_done = False
     
@@ -190,7 +192,6 @@ def _check_dome_safety_or_abort(context, where: str) -> bool:
                 context._weather_park_done = True
             except Exception as e:
                 context.log(f"⚠️ Weather safety stop: PWI4 park failed: {e}")
-        # ===== END FIX =====
     
         context.log(
             f"🚨 SAFETY STOP: Dome shutter unsafe "
@@ -198,6 +199,7 @@ def _check_dome_safety_or_abort(context, where: str) -> bool:
         )
         context.stop_requested.set()
         return True
+    return False
 
 # ---------------------------------------------------------------------------
 # Batch public entrypoint
@@ -208,17 +210,14 @@ def run_batch(context, rows):
         total_rows = len(rows)
         context.log(f"🚀 Batch run started ({total_rows} rows)")
         
-        # ===== BEGIN FIX: reset scheduler pre-cal flag per batch run =====
+        # Reset per-batch scheduler pre-calibration state
         context._scheduler_precal_done = False
-        # ===== END FIX =====
         
-        # ===== BEGIN FIX: reset shutter safety debounce =====
+        # Reset shutter safety debounce state
         context._shutter_unsafe_count = 0
-        # ===== END FIX =====
         
-        # ===== BEGIN FIX: reset weather park latch =====
+        # Reset weather-abort park latch
         context._weather_park_done = False
-        # ===== END FIX =====
     
         first_target_started = False
     
@@ -250,7 +249,7 @@ def run_batch(context, rows):
 
             idx = 0  # conventional-mode index
             
-            # ===== BEGIN FIX: scheduler start-time gate (HA mode only) =====
+            # Scheduler start-time wait (HA mode)
             if smart_mode:
                 start_utc = getattr(context, "batch_start_utc", None)
                 if start_utc:
@@ -258,14 +257,13 @@ def run_batch(context, rows):
                         f"⏳ Scheduler enabled — waiting until {start_utc.strftime('%H:%M')} UTC to begin."
                     )
             
-                    # ===== BEGIN FIX: park telescope during scheduler wait =====
+                    # Park telescope while waiting for scheduler start time
                     try:
                         from utils import park_pwi4
                         context.log("🅿️ Parking telescope before scheduler start wait.")
                         park_pwi4()
                     except Exception as e:
                         context.log(f"⚠️ PWI4 Park failed before scheduler wait: {e}")
-                    # ===== END FIX =====
             
                     while datetime.now(timezone.utc) < start_utc:
                         if _check_dome_safety_or_abort(context, "scheduler start wait"):
@@ -276,7 +274,6 @@ def run_batch(context, rows):
                         time.sleep(10)
             
                     context.log("▶️ Scheduler start time reached — entering HA loop.")
-            # ===== END FIX =====
             
             while True:
                 if _check_dome_safety_or_abort(context, "main batch loop"):
@@ -316,9 +313,6 @@ def run_batch(context, rows):
                             break
                         if block.get("_action") == "WAIT":
                             continue
-
-                    if block.get("_action") == "WAIT":
-                        continue
 
                 # If block is disabled or already complete, skip (should be filtered, but keep safe)
                 if not block.get("enabled", True):
@@ -373,7 +367,7 @@ def run_batch(context, rows):
                             f"⚠️ Reference target failed for '{target}' (ref '{ref.get('name','')}'): {e}"
                         )
                 
-                    # ===== BEGIN FIX: HA-mode terminal exit after reference =====
+                    # HA mode: stop immediately after final reference target
                     if smart_mode:
                         remaining = sum(
                             1 for b in blocks
@@ -382,14 +376,13 @@ def run_batch(context, rows):
                         if remaining == 0:
                             context.log("✅ All enabled targets completed (HA mode) — ending batch.")
                             break
-                    # ===== END FIX =====
                 
                 # Mark complete
                 block["completed"] = True
                 context.log(f"✅ Target '{target}' complete.")
                 context.log("")  # separator between target blocks
 
-                # ===== BEGIN NEW BLOCK: HA-mode terminal exit when all targets complete =====
+                # HA mode: stop when all enabled targets are complete
                 if smart_mode:
                     remaining = sum(
                         1 for b in blocks
@@ -398,7 +391,6 @@ def run_batch(context, rows):
                     if remaining == 0:
                         context.log("✅ All enabled targets completed (HA mode) — ending batch.")
                         break
-                # ===== END NEW BLOCK =====
 
                 # Conventional-mode: optional park if there is a long idle gap before next start time
                 if not smart_mode:
@@ -654,14 +646,13 @@ def _wait_until_target_start_utc(context, hhmm_ut, target_name):
 
         context.log(f"⏳ Waiting until {hhmm_ut} UT before starting '{target_name}'...")
         
-        # ===== BEGIN FIX: park telescope during conventional start wait =====
+        # Park telescope while waiting for conventional start time
         try:
             from utils import park_pwi4
             context.log("🅿️ Parking telescope before conventional start wait.")
             park_pwi4()
         except Exception as e:
             context.log(f"⚠️ PWI4 Park failed before conventional start wait: {e}")
-        # ===== END FIX =====
         
         while datetime.now(timezone.utc) < scheduled:
 
@@ -825,7 +816,6 @@ def run_reference_target(context, ref_name, exp_s, frames):
         include_calibs=False,  # never run calibs for reference
     )
 
-
 # ---------------------------------------------------------------------------
 # Core execution: one target (science or reference)
 # ---------------------------------------------------------------------------
@@ -874,7 +864,7 @@ def run_single_target(context, target_name, exp_s, frames, include_calibs=True):
             context.log("🛑 Stop flag detected — aborting before calibration.")
             return
         
-        # ===== BEGIN NEW BLOCK: scheduler pre-first-target calibration =====
+        # Scheduler mode: one-time calibration before first science target
         bt = getattr(context, "batch_tab", None)
         
         if (
@@ -897,7 +887,6 @@ def run_single_target(context, target_name, exp_s, frames, include_calibs=True):
             except Exception as e:
                 context.log(f"❌ Scheduler pre-calibration failed — aborting batch: {e}")
                 return
-        # ===== END NEW BLOCK =====
         
         # --------------------------------------------------
         # Calibration block (first, if enabled)
@@ -1147,9 +1136,8 @@ def _roi_star_acquire(context, g):
             g.SetExposure(trial)
             context.guide_log(f"Trying exposure {trial:.2f}s in ROI {roi_box}...")
             
-            # ===== BEGIN FIX: ensure at least one real frame at this exposure =====
+            # Allow at least one real frame at this exposure before FindStar
             time.sleep(max(2.0, trial + 0.5))
-            # ===== END FIX =====
             
             g.FindStar(roi_box)
             context.guide_log("ROI-based star search issued.")
@@ -1196,10 +1184,9 @@ def _fibre_settle(context, g):
         guider_exp = getattr(g, "GetExposure", lambda: 1000)() / 1000.0
         tolerance_near = 10
 
-        # ===== BEGIN NEW: hard timeout for "reach fibre region" =====
+        # Hard timeout for reaching fibre region (scaled by guider exposure)
         timeout_near = max(120, guider_exp * 18)  # scales with exposure; avoids hangs
         t0 = time.time()
-        # ===== END NEW =====
 
         context.guide_log(f"Waiting for star to reach fibre region (≤{tolerance_near}px)...")
         while True:
