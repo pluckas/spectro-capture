@@ -561,7 +561,36 @@ def _next_ha_block(context, blocks, ha_min, ha_max):
         return None
 
     now_utc = datetime.now(timezone.utc)
-
+    
+    # ----------------------------------------------------------
+    # Timed-target absolute override (ignore HA limits)
+    # ----------------------------------------------------------
+    due_target = None
+    due_time = None
+    
+    for b in blocks:
+        if not b.get("enabled", True) or b.get("completed", False):
+            continue
+    
+        st_str = b.get("start_time", "")
+        if st_str:
+            try:
+                hh, mm = map(int, str(st_str).strip().split(":"))
+                st = now_utc.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        
+                if st <= now_utc:
+                    if due_time is None or st < due_time:
+                        due_time = st
+                        due_target = b
+            except Exception:
+                pass
+    
+    if due_target:
+        context.log(
+            f"⏰ Timed target due now — running '{due_target['name']}' (HA limits bypassed)"
+        )
+        return due_target
+    
     sched_blocks = []
     block_map = {}
     
