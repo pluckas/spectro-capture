@@ -563,6 +563,52 @@ def _next_ha_block(context, blocks, ha_min, ha_max):
     now_utc = datetime.now(timezone.utc)
     
     # ----------------------------------------------------------
+    # Timed-target pre-reservation guard
+    # If a timed target is approaching soon, do NOT allow any
+    # HA target to start — reserve the timeline.
+    # ----------------------------------------------------------
+    next_start_utc = None
+    timed_block = None
+    
+    for b in blocks:
+        if not b.get("enabled", True) or b.get("completed", False):
+            continue
+    
+        st = _parse_start_time_utc(b.get("start_time", ""), now_utc)
+        if st:
+            if next_start_utc is None or st < next_start_utc:
+                next_start_utc = st
+                timed_block = b
+    
+    if next_start_utc:
+        seconds_until = (next_start_utc - now_utc).total_seconds()
+    
+        # Conservative minimum block duration (~calibration + safety)
+        MIN_BLOCK_SECONDS = 20 * 60
+    
+        if seconds_until <= MIN_BLOCK_SECONDS:
+            context.log(
+                f"⏰ Upcoming timed target '{timed_block['name']}' at "
+                f"{next_start_utc.strftime('%H:%M')} UTC — reserving timeline"
+            )
+    
+            try:
+                from utils import park_pwi4
+                park_pwi4()
+                context.log("🅿️ Telescope parked while waiting for timed target window.")
+            except Exception as e:
+                context.log(f"⚠️ Park failed: {e}")
+    
+            for _ in range(12):
+                if _check_dome_safety_or_abort(context, "timed reservation wait"):
+                    return {"_action": "STOP"}
+                if context.stop_requested.is_set():
+                    return {"_action": "STOP"}
+                time.sleep(10)
+    
+            return {"_action": "WAIT"}
+    
+    # ----------------------------------------------------------
     # Timed-target absolute override (ignore HA limits)
     # ----------------------------------------------------------
     due_target = None
