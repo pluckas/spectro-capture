@@ -502,6 +502,50 @@ def _will_target_enter_ha_window_before_cutoff(
 
     return crossing_utc < latest_start_utc
 
+# ---------------------------------------------------------------------------
+# Timed-target protection helpers
+# ---------------------------------------------------------------------------
+
+def _parse_start_time_utc(start_str: str, now_utc: datetime) -> datetime | None:
+    """Return next occurrence of HH:MM UTC today, or None if invalid/blank."""
+    if not start_str:
+        return None
+    try:
+        hh, mm = map(int, str(start_str).strip().split(":"))
+        dt = now_utc.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        if dt <= now_utc:
+            return None  # already passed → no longer a future appointment
+        return dt
+    except Exception:
+        return None
+
+
+def _estimate_block_duration_seconds(block: dict) -> float:
+    """
+    Estimate how long this block occupies the telescope.
+    Conservative is good — we only need to avoid collisions.
+    """
+    exp = float(block.get("exp_s", 0))
+    frames = int(block.get("frames", 0))
+
+    science = exp * frames
+
+    # calibration allowance (~15 min if enabled, else 0)
+    cal = 900 if block.get("calibrate") else 0
+
+    # reference target allowance (rough)
+    ref = 0
+    r = block.get("reference")
+    if r:
+        try:
+            ref = float(r.get("exp_s", 0)) * int(r.get("frames", 0))
+        except Exception:
+            ref = 0
+
+    overhead = 60  # guider settle / slew / sequencing buffer
+
+    return science + cal + ref + overhead
+
 def _next_ha_block(context, blocks, ha_min, ha_max):
     """
     HA mode selection:
@@ -520,9 +564,21 @@ def _next_ha_block(context, blocks, ha_min, ha_max):
 
     sched_blocks = []
     block_map = {}
-
+    
     closest = None  # (abs_distance_to_window, name, ha)
-
+    
+    # ----------------------------------------------------------
+    # Timed-target protection: find next future appointment
+    # ----------------------------------------------------------
+    next_start_utc = None
+    for tb in blocks:
+        if not tb.get("enabled", True) or tb.get("completed", False):
+            continue
+        st = _parse_start_time_utc(tb.get("start_time", ""), now_utc)
+        if st:
+            if next_start_utc is None or st < next_start_utc:
+                next_start_utc = st
+    
     remaining = 0
     for b in blocks:
         if not b.get("enabled", True):
@@ -627,7 +683,39 @@ def _next_ha_block(context, blocks, ha_min, ha_max):
         return {"_action": "WAIT"}
 
     sb = sched_blocks[chosen_idx]
-    return block_map[id(sb)]
+    candidate = block_map[id(sb)]
+    
+    # ----------------------------------------------------------
+    # Timed-target collision protection
+    # ----------------------------------------------------------
+    if next_start_utc:
+        duration = _estimate_block_duration_seconds(candidate)
+        finish_time = now_utc + timedelta(seconds=duration)
+    
+        if finish_time >= next_start_utc:
+            context.log(
+                f"⏰ Skipping '{candidate['name']}' — would overlap timed target at "
+                f"{next_start_utc.strftime('%H:%M')} UTC"
+            )
+    
+            context.log("🅿️ Parking and waiting for timed target window…")
+    
+            try:
+                from utils import park_pwi4
+                park_pwi4()
+            except Exception as e:
+                context.log(f"⚠️ Park failed: {e}")
+    
+            for _ in range(12):
+                if _check_dome_safety_or_abort(context, "timed wait"):
+                    return {"_action": "STOP"}
+                if context.stop_requested.is_set():
+                    return {"_action": "STOP"}
+                time.sleep(10)
+    
+            return {"_action": "WAIT"}
+    
+    return candidate
 
 
 def _wait_until_target_start_utc(context, hhmm_ut, target_name):
