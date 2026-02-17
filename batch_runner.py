@@ -15,18 +15,26 @@ Multi-target automation orchestrator for Spectro Capture.
 
 Conventional mode:
 - Runs rows in table order.
-- (Optional) per-row UT start time still supported.
+- Optional per-row UT start time supported.
+- Telescope will wait (parked) until the scheduled time if necessary.
 - Shutdown happens when the last enabled target finishes.
 
 HA mode ("smart mode"):
-- Chooses the next target inside HA window.
-- Shutdown happens when either:
-  (a) all enabled targets have been completed, OR
-  (b) it is too late to *start* another scheduled science target before
-      nautical twilight (Sun = -12° rising), with a fixed guard:
-      "latest start" = (nautical twilight rising UTC) - 60 minutes.
+- Dynamically selects targets within the HA window.
+- Timed targets act as appointments and always take priority.
+- Scheduler avoids starting HA targets that would overlap a timed target.
+- HA targets are only started when sufficient night remains.
 
-There is NO batch stop-time concept anywhere in this file.
+Twilight behaviour:
+- New opportunistic (HA) targets will NOT start after:
+      latest start = nautical twilight rising (Sun = -12°) − 60 minutes
+- Timed targets MAY start before this limit and run past twilight.
+- Any target already in progress is never interrupted by the twilight limit.
+
+General behaviour:
+- The system prefers waiting over starting a risky target.
+- Telescope parks during idle gaps and re-evaluates conditions periodically.
+- There is NO batch stop-time concept anywhere in this file.
 """
 
 import threading
