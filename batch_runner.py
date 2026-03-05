@@ -231,7 +231,22 @@ def run_batch(context, rows):
     
         # Parse rows once into internal blocks
         blocks = _parse_rows_to_blocks(context, rows)
-
+        
+        # --- Diagnostic: list timed targets detected in this batch ---
+        context.log("🕒 Timed targets detected in batch:")
+        
+        timed_count = 0
+        for b in blocks:
+            st = str(b.get("start_time", "")).strip()
+            if st:
+                context.log(f"   • {b['name']} → {st} UTC")
+                timed_count += 1
+        
+        if timed_count == 0:
+            context.log("   (none)")
+        else:
+            context.log(f"   Total timed targets: {timed_count}")
+        
         smart_mode = bool(getattr(context, "batch_smart_mode", False))
         ha_min = float(getattr(context, "batch_ha_min", -2.0))
         ha_max = float(getattr(context, "batch_ha_max", 1.0))
