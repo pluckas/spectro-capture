@@ -1405,7 +1405,20 @@ def _roi_star_acquire(context, g):
             time.sleep(2.0)
 
             if g.AppState in ("Selected", "Looping", "Guiding"):
-                context.guide_log(f"✅ Star found in ROI at {trial:.2f}s — continuing.")
+            
+                # --- Get lock position (initial find) ---
+                try:
+                    pos = g.GetLockPosition()
+                    if isinstance(pos, (list, tuple)) and len(pos) == 2:
+                        x, y = pos
+                        context.guide_log(
+                            f"✅ Star found in ROI at {trial:.2f}s — continuing. (x={x:.1f}, y={y:.1f})"
+                        )
+                    else:
+                        context.guide_log(f"✅ Star found in ROI at {trial:.2f}s — continuing.")
+                except Exception:
+                    context.guide_log(f"✅ Star found in ROI at {trial:.2f}s — continuing.")
+            
                 roi_found = True
 
                 # ROI auto-average sample (kept)
