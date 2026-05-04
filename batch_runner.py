@@ -226,9 +226,12 @@ def run_batch(context, rows):
         
         # Reset weather-abort park latch
         context._weather_park_done = False
-    
+        
         first_target_started = False
-    
+        
+        # --- Batch summary tracking ---
+        batch_summary = {}
+        
         # Parse rows once into internal blocks
         blocks = _parse_rows_to_blocks(context, rows)
         
@@ -359,7 +362,14 @@ def run_batch(context, rows):
                 done_count = sum(1 for b in blocks if b.get("completed"))
                 total_enabled = sum(1 for b in blocks if b.get("enabled"))
                 context.log(f"🟢 [{done_count}/{total_enabled}] Starting target '{target}'")
-
+                
+                # --- Batch summary: register target ---
+                batch_summary[target] = {
+                    "success": False,
+                    "fail_reason": None,
+                    "refs": []
+                }
+                
                 first_target_started = True
 
                 # Science target
@@ -370,11 +380,20 @@ def run_batch(context, rows):
                         context.log("🛑 Stop requested during science target — aborting batch.")
                         break
                     science_ok = True
+                    
+                    # --- Batch summary: mark success ---
+                    batch_summary[target]["success"] = True
                 except Exception as e:
                     context.log(f"❌ Science target failed for '{target}': {e}")
 
-                # Reference target (only if science succeeded)
                 if science_ok and ref:
+                
+                    # --- Batch summary: register reference ---
+                    batch_summary[target]["refs"].append({
+                        "name": ref.get("name", ""),
+                        "success": False
+                    })
+                
                     try:
                         run_reference_target(
                             context,
@@ -382,13 +401,23 @@ def run_batch(context, rows):
                             ref.get("exp_s", ""),
                             ref.get("frames", ""),
                         )
+                
+                        # --- Batch summary: reference success ---
+                        if batch_summary[target]["refs"]:
+                            batch_summary[target]["refs"][-1]["success"] = True
+                
                         if context.stop_requested.is_set():
                             context.log("🛑 Stop requested during reference — aborting batch.")
                             break
+                
                     except Exception as e:
                         context.log(
                             f"⚠️ Reference target failed for '{target}' (ref '{ref.get('name','')}'): {e}"
                         )
+                
+                        # --- Batch summary: reference failure ---
+                        if batch_summary[target]["refs"]:
+                            batch_summary[target]["refs"][-1]["success"] = False
                 
                     # HA mode: stop immediately after final reference target
                     if smart_mode:
@@ -424,6 +453,52 @@ def run_batch(context, rows):
         finally:
             # Shutdown always happens when loop ends (last target done OR stop requested OR HA cutoff)
             context.log("🎯 Batch run complete.")
+            
+            # --- Batch Summary Output ---
+            context.log("")
+            context.log("===== BATCH SUMMARY =====")
+            
+            success = []
+            failed = []
+            ref_success = 0
+            ref_failed = 0
+            
+            for t, data in batch_summary.items():
+                if data["success"]:
+                    success.append(t)
+                else:
+                    failed.append(t)
+            
+            # Successful targets
+            context.log("")
+            context.log("Successful targets:")
+            for t in success:
+                context.log(f"- {t}")
+                for r in batch_summary[t]["refs"]:
+                    if r["success"]:
+                        context.log(f"    ↳ reference: {r['name']}")
+                        ref_success += 1
+                    else:
+                        context.log(f"    ↳ reference: {r['name']} (failed)")
+                        ref_failed += 1
+            
+            # Failed science targets
+            if failed:
+                context.log("")
+                context.log("Failed / skipped:")
+                for t in failed:
+                    context.log(f"- {t} (failed)")
+            
+            # Totals
+            context.log("")
+            context.log("Totals:")
+            context.log(f"- Science targets completed: {len(success)}")
+            context.log(f"- Reference targets used: {ref_success}")
+            context.log(f"- Reference targets failed: {ref_failed}")
+            context.log(f"- Failed: {len(failed)}")
+            
+            context.log("")
+            context.log("=========================")
 
             # No targets started -> do not run optional shutdown actions
             if not first_target_started:
