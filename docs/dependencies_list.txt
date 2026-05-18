@@ -1,0 +1,28 @@
+# Dependencies
+
+Spectro Capture is provided as Python source code and is not currently packaged as a standalone installer. It is intended to be run from a configured Python environment on Windows.
+
+## Core external Python packages
+
+The main external Python packages used by Spectro Capture are:
+
+- alpyca
+- astropy
+- astroquery
+- matplotlib
+- numpy
+- pandas
+- photutils
+- Pillow
+- psutil
+- pyserial
+- pywin32
+- PyYAML
+- requests
+- scipy
+- ttkbootstrap
+
+## Suggested installation command
+
+```cmd
+pip install alpyca astropy astroquery matplotlib numpy pandas photutils pillow psutil pyserial pywin32 PyYAML requests scipy ttkbootstrap
