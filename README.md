@@ -115,7 +115,10 @@ The codebase reflects a working, evolving system and may change without notice.
 Stability, interfaces, and internal structure should not be considered fixed at
 this stage.
 
+Spectro Capture is provided as Python source code rather than as a packaged installer. Python dependency and environment information is provided in the `docs` folder..
+
 ---
+
 
 ## Disclaimer
 
