@@ -117,28 +117,35 @@ def update_status_header(context, widgets, sync_blink):
         updated sync_blink value
     """
 
-    cam  = getattr(context, "camera", None)
-    tel  = getattr(context, "telescope", None)
-    dome = getattr(context, "dome", None)
-    sync = getattr(context, "dome_sync_enabled", False)
-
-    # -------------------------
-    # Camera
-    # -------------------------
-    if cam and getattr(cam, "Connected", False):
-        widgets["cam_dot"].config(foreground="green")
-    else:
-        widgets["cam_dot"].config(foreground="red")
-
-    # -------------------------
-    # Cooler (yellow until at temp)
-    # -------------------------
-    if cam and getattr(cam, "Connected", False):
+    def safe_get(obj, attr, default=None):
         try:
-            cooler_on = bool(getattr(cam, "CoolerOn", False))
+            return getattr(obj, attr, default)
+        except Exception:
+            return default
+
+    try:
+        cam  = safe_get(context, "camera")
+        tel  = safe_get(context, "telescope")
+        dome = safe_get(context, "dome")
+        sync = bool(safe_get(context, "dome_sync_enabled", False))
+
+        cam_connected = bool(cam and safe_get(cam, "Connected", False))
+        tel_connected = bool(tel and safe_get(tel, "Connected", False))
+        dome_connected = bool(dome and safe_get(dome, "Connected", False))
+
+        # -------------------------
+        # Camera
+        # -------------------------
+        widgets["cam_dot"].config(foreground="green" if cam_connected else "red")
+
+        # -------------------------
+        # Cooler (yellow until at temp)
+        # -------------------------
+        if cam_connected:
+            cooler_on = bool(safe_get(cam, "CoolerOn", False))
             if cooler_on:
-                current = getattr(cam, "CCDTemperature", None)
-                target  = getattr(cam, "SetCCDTemperature", None)
+                current = safe_get(cam, "CCDTemperature")
+                target  = safe_get(cam, "SetCCDTemperature")
                 tol = 1.0
 
                 if isinstance(current, (float, int)) and isinstance(target, (float, int)):
@@ -150,68 +157,58 @@ def update_status_header(context, widgets, sync_blink):
                     widgets["cooler_dot"].config(foreground="yellow")
             else:
                 widgets["cooler_dot"].config(foreground="red")
-        except Exception:
+        else:
             widgets["cooler_dot"].config(foreground="red")
-    else:
-        widgets["cooler_dot"].config(foreground="red")
 
-    # -------------------------
-    # Telescope
-    # -------------------------
-    if tel and getattr(tel, "Connected", False):
-        widgets["tel_dot"].config(foreground="green")
-    else:
-        widgets["tel_dot"].config(foreground="red")
+        # -------------------------
+        # Telescope
+        # -------------------------
+        widgets["tel_dot"].config(foreground="green" if tel_connected else "red")
 
-    # -------------------------
-    # Dome
-    # -------------------------
-    if dome and getattr(dome, "Connected", False):
-        widgets["dome_dot"].config(foreground="green")
-    else:
-        widgets["dome_dot"].config(foreground="red")
+        # -------------------------
+        # Dome
+        # -------------------------
+        widgets["dome_dot"].config(foreground="green" if dome_connected else "red")
 
-    # -------------------------
-    # Dome Sync (with flashing while dome moves)
-    # -------------------------
-    if dome and getattr(dome, "Slewing", False):
-        sync_blink = not sync_blink
-        widgets["sync_dot"].config(foreground="yellow" if sync_blink else "black")
-    else:
-        widgets["sync_dot"].config(foreground="green" if sync else "red")
-        sync_blink = False
+        # -------------------------
+        # Dome Sync (with flashing while dome moves)
+        # -------------------------
+        if dome_connected and safe_get(dome, "Slewing", False):
+            sync_blink = not sync_blink
+            widgets["sync_dot"].config(foreground="yellow" if sync_blink else "black")
+        else:
+            widgets["sync_dot"].config(foreground="green" if sync else "red")
+            sync_blink = False
 
-    # -------------------------
-    # Binning
-    # -------------------------
-    widgets["bin_lbl"].config(text=f"{context.current_binning}")
+        # -------------------------
+        # Binning
+        # -------------------------
+        widgets["bin_lbl"].config(text=f"{safe_get(context, 'current_binning', '--')}")
 
-    # -------------------------
-    # Temperature
-    # -------------------------
-    if cam and getattr(cam, "Connected", False):
-        try:
-            t = getattr(cam, "CCDTemperature", None)
+        # -------------------------
+        # Temperature
+        # -------------------------
+        if cam_connected:
+            t = safe_get(cam, "CCDTemperature")
             t_str = f"{t:.1f}" if isinstance(t, (float, int)) else "--"
-        except Exception:
+        else:
             t_str = "--"
-    else:
-        t_str = "--"
 
-    widgets["temp_lbl"].config(text=f"{t_str} °C")
-    
-    # ===== NEW: Lamps (yellow=ON, black=OFF) =====
-    try:
+        widgets["temp_lbl"].config(text=f"{t_str} °C")
+
+        # ===== NEW: Lamps (yellow=ON, black=OFF) =====
         widgets["tung_dot"].config(
-            foreground="yellow" if getattr(context, "tung_on", False) else "black"
+            foreground="yellow" if safe_get(context, "tung_on", False) else "black"
         )
         widgets["thor_dot"].config(
-            foreground="yellow" if getattr(context, "thor_on", False) else "black"
+            foreground="yellow" if safe_get(context, "thor_on", False) else "black"
         )
+        # =============================================
+
     except Exception:
+        # Transient ASCOM/COM errors during aborts should not stop future refreshes.
         pass
-    # =============================================
-    
+
     return sync_blink
     
     

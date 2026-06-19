@@ -436,11 +436,13 @@ class GuideTab(ttk.Frame):
     # -------------------------------------------------
     def refresh_status_header(self):
         """Update the shared Sequencer/Batch/Guide status bar."""
-        from status_bar import update_status_header
-        self._sync_blink = update_status_header(
-            self.context,
-            self.indicators,
-            self._sync_blink
-        )
-        self.after(1000, self.refresh_status_header)
+        try:
+            from status_bar import update_status_header
+            self._sync_blink = update_status_header(
+                self.context,
+                self.indicators,
+                self._sync_blink
+            )
+        finally:
+            self.after(1000, self.refresh_status_header)
 

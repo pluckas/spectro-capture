@@ -557,17 +557,18 @@ class BatchTab(ttk.Frame):
     # Status indicator updater
     # ----------------------------------------------------------------------
     def refresh_batch_status(self):
-        from status_bar import update_status_header
+        try:
+            from status_bar import update_status_header
 
-        self._sync_blink = update_status_header(
-            self.context,
-            self.indicators,
-            self._sync_blink
-        )
+            self._sync_blink = update_status_header(
+                self.context,
+                self.indicators,
+                self._sync_blink
+            )
 
-        if self.batch_running:
-            if self.context.stop_requested.is_set():
-                self.batch_running = False
-                self.status_lbl.config(text="Idle")
-
-        self.after(1000, self.refresh_batch_status)
+            if self.batch_running:
+                if self.context.stop_requested.is_set():
+                    self.batch_running = False
+                    self.status_lbl.config(text="Idle")
+        finally:
+            self.after(1000, self.refresh_batch_status)

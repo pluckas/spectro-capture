@@ -165,19 +165,19 @@ class SequencerTab(ttk.Frame, SafeLogMixin):
 
     # --- UI status loop ---
     def refresh_status(self):
-    
-        # Update binning label (stored in indicators dict now)
-        self.indicators["bin_lbl"].config(text=f"{self.context.current_binning}")
-    
-        # Update all other indicators through shared helper
-        self._sync_blink = update_status_header(
-            self.context,
-            self.indicators,
-            self._sync_blink
-        )
-    
-        # Continue refresh loop
-        self.after(1000, self.refresh_status)
+        try:
+            # Update binning label (stored in indicators dict now)
+            self.indicators["bin_lbl"].config(text=f"{self.context.current_binning}")
+
+            # Update all other indicators through shared helper
+            self._sync_blink = update_status_header(
+                self.context,
+                self.indicators,
+                self._sync_blink
+            )
+        finally:
+            # Continue refresh loop
+            self.after(1000, self.refresh_status)
 
     def set_target(self, name: str):
         """Externally set the target name in the Sequencer input box."""
@@ -369,6 +369,8 @@ class SequencerTab(ttk.Frame, SafeLogMixin):
         def worker():
             try:
                 lamp_off()
+                self.context.tung_on = False
+                self.context.thor_on = False
                 self.safe_log("Lamp OFF (safety before target run)")
         
                 # Tell the status system how many science frames we plan
