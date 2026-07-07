@@ -498,6 +498,23 @@ def format_coords(c: SkyCoord):
     ra_str = c.ra.to_string(unit=u.hour, sep=' ', precision=2)
     dec_str = c.dec.to_string(unit=u.deg, sep=' ', precision=2, alwayssign=True)
     return ra_str, dec_str
+
+
+def parse_ra_dec_strings(ra_value, dec_value):
+    """
+    Parse manual batch coordinates.
+    Returns (ra_hours, dec_deg), or (None, None) if both fields are blank.
+    """
+    ra_text = str(ra_value).strip()
+    dec_text = str(dec_value).strip()
+
+    if not ra_text and not dec_text:
+        return None, None
+    if not ra_text or not dec_text:
+        raise ValueError("Please fill all fields.")
+
+    coord = SkyCoord(ra_text, dec_text, unit=(u.hourangle, u.deg))
+    return coord.ra.hour, coord.dec.degree
     
 # ----------------------------
 # Unified Target Slew Helper
@@ -551,6 +568,28 @@ def slew_target(target_name: str, apply_pm: bool = False, log_fn=print):
 
     except Exception as e:
         log_fn(f"❌ Slew failed for {target_name}: {e}")
+        return False
+
+
+def slew_target_coords(ra_hours: float, dec_deg: float, target_name: str = "", log_fn=print):
+    """
+    Slew directly to supplied coordinates, bypassing SIMBAD resolution.
+    """
+    from utils import connect_mount, format_coords, slew_pwi4
+
+    label = target_name or "manual coordinates"
+
+    try:
+        connect_mount()
+        coord = SkyCoord(ra=ra_hours * u.hour, dec=dec_deg * u.deg, frame="icrs")
+        ra_str, dec_str = format_coords(coord)
+        log_fn(f"Using supplied coordinates for {label}: RA={ra_str}, Dec={dec_str}")
+        log_fn(f"Slewing to {label} via PWI4 HTTP (manual coordinates)...")
+        slew_pwi4(ra_hours, dec_deg, target_name)
+        log_fn(f"✅ Slew to {label} complete.")
+        return True
+    except Exception as e:
+        log_fn(f"❌ Slew failed for {label}: {e}")
         return False
         
 # ======================================================================
@@ -824,4 +863,3 @@ def wait_until_utc(target_utc, stop_event=None, log_fn=None):
         time.sleep(5)
 
     return True
-

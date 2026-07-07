@@ -27,6 +27,11 @@ from datetime import datetime, timezone
 
 
 class BatchTab(ttk.Frame):
+    CSV_HEADER = [
+        "Target", "RA", "Dec", "Exp (s)", "Frames",
+        "Calibrate", "Enabled", "Start Time (Local)",
+        "Ref Star", "Ref Exp (s)", "Ref Frames"
+    ]
 
     def _set_scheduler_enabled(self, enabled: bool):
         state = "normal" if enabled else "disabled"
@@ -51,6 +56,7 @@ class BatchTab(ttk.Frame):
         context.batch_tab = self
         self.batch_running = False
         self.stop_requested = False
+        self._row_coords = {}
 
         # ============================================================
         # >>> NEW LAYOUT: top content (50%), spacer (50%), footer
@@ -230,8 +236,13 @@ class BatchTab(ttk.Frame):
         if not sel:
             messagebox.showinfo("Edit Target", "Select a target first.")
             return
-        values = self.table.item(sel[0], "values")
-        self._target_dialog(prefill=values, item=sel[0])
+        values = list(self.table.item(sel[0], "values"))
+        ra, dec = self._row_coords.get(sel[0], ("", ""))
+        prefill = (
+            values[0], ra, dec, values[1], values[2], values[3],
+            values[4], values[5], values[6], values[7], values[8]
+        )
+        self._target_dialog(prefill=prefill, item=sel[0])
 
     def _target_dialog(self, prefill=None, item=None):
         win = tk.Toplevel(self)
@@ -245,28 +256,31 @@ class BatchTab(ttk.Frame):
         # Text entry fields
         # ---------------------------------------------------------
         labels = [
-            "Target name:", "Exposure (s):", "Frames:", "Start Time (Local):",
-            "Ref star:", "Ref exposure (s):", "Ref frames:"
+            "Target name:", "RA:", "Dec:", "Exposure (s):",
+            "Frames:", "Start Time (Local):", "Ref star:",
+            "Ref exposure (s):", "Ref frames:"
         ]
         entries = {}
         
-        # defaults: name, exp, frames, calib, enabled, start_time, ref, ref_exp, ref_frames
+        # defaults: name, ra, dec, exp, frames, calib, enabled, start_time, ref, ref_exp, ref_frames
         if prefill:
-            defaults = tuple(prefill) + ("",) * (9 - len(prefill))
+            defaults = tuple(prefill) + ("",) * (11 - len(prefill))
         else:
-            defaults = ("", "600", "3", "✓", "✓", "", "", "", "")
+            defaults = ("", "", "", "600", "3", "✓", "✓", "", "", "", "")
         
         # ---------------------------------------------------------
         # REPLACEMENT LOOP (adds Combobox for Start Time)
         # ---------------------------------------------------------
         field_map = {
             "Target name:": 0,
-            "Exposure (s):": 1,
-            "Frames:": 2,
-            "Start Time (Local):": 5,
-            "Ref star:": 6,
-            "Ref exposure (s):": 7,
-            "Ref frames:": 8,
+            "RA:": 1,
+            "Dec:": 2,
+            "Exposure (s):": 3,
+            "Frames:": 4,
+            "Start Time (Local):": 7,
+            "Ref star:": 8,
+            "Ref exposure (s):": 9,
+            "Ref frames:": 10,
         }
         
         for i, text in enumerate(labels):
@@ -280,9 +294,9 @@ class BatchTab(ttk.Frame):
         
                 cb = ttk.Combobox(win, values=time_options, width=10)
                 
-                if defaults[5]:
+                if defaults[7]:
                     # Stored value is UTC → convert back to Local for editing
-                    cb.set(utc_hhmm_to_local_hhmm(defaults[5]))
+                    cb.set(utc_hhmm_to_local_hhmm(defaults[7]))
                 else:
                     cb.set("")
                 
@@ -300,28 +314,34 @@ class BatchTab(ttk.Frame):
         # ---------------------------------------------------------
         # Calibration checkbox (row 4)
         # ---------------------------------------------------------
-        calib_default = (defaults[3] == "✓")
+        calib_row = len(labels)
+        enabled_row = len(labels) + 1
+        ok_row = len(labels) + 2
+
+        calib_default = (defaults[5] == "✓")
         calib_var = tk.BooleanVar(value=calib_default)
         ttk.Checkbutton(win, text="Include calibration", variable=calib_var)\
-            .grid(row=7, column=1, sticky="w", padx=5, pady=4)
+            .grid(row=calib_row, column=1, sticky="w", padx=5, pady=4)
     
         # ---------------------------------------------------------
         # Enabled checkbox (row 5)
         # ---------------------------------------------------------
-        enabled_default = (defaults[4] == "✓")
+        enabled_default = (defaults[6] == "✓")
         enabled_var = tk.BooleanVar(value=enabled_default)
         ttk.Checkbutton(win, text="Enabled", variable=enabled_var)\
-            .grid(row=8, column=1, sticky="w", padx=5, pady=4)
+            .grid(row=enabled_row, column=1, sticky="w", padx=5, pady=4)
     
         # ---------------------------------------------------------
         # OK button (row 6)
         # ---------------------------------------------------------
         def ok():
             name = entries["Target name:"].get().strip()
+            ra = entries["RA:"].get().strip()
+            dec = entries["Dec:"].get().strip()
             exp = entries["Exposure (s):"].get().strip()
             frames = entries["Frames:"].get().strip()
     
-            if not (name and exp and frames):
+            if not (name and exp and frames) or bool(ra) != bool(dec):
                 messagebox.showwarning("Incomplete", "Please fill all fields.")
                 return
     
@@ -347,13 +367,14 @@ class BatchTab(ttk.Frame):
     
             if item:
                 self.table.item(item, values=vals)
+                self._row_coords[item] = (ra, dec)
             else:
-                self.table.insert("", "end", values=vals)
+                item_id = self.table.insert("", "end", values=vals)
+                self._row_coords[item_id] = (ra, dec)
             
             self.status_lbl.config(text=f"Added/edited {name}")
             win.destroy()
     
-        ok_row = len(labels) + 2
         ttk.Button(win, text="OK", command=ok)\
             .grid(row=ok_row, column=0, columnspan=2, pady=8)
     
@@ -364,12 +385,14 @@ class BatchTab(ttk.Frame):
 
     def remove_selected(self):
         for s in self.table.selection():
+            self._row_coords.pop(s, None)
             self.table.delete(s)
         self.status_lbl.config(text="Removed selected targets")
 
     def clear_all(self):
         for i in self.table.get_children():
             self.table.delete(i)
+        self._row_coords.clear()
         self.status_lbl.config(text="Cleared all targets")
 
     # ----------------------------------------------------------------------
@@ -389,18 +412,14 @@ class BatchTab(ttk.Frame):
             return
     
         try:
-            rows = [self.table.item(i, "values") for i in self.table.get_children()]
+            rows = [self._full_row_values(i) for i in self.table.get_children()]
             if not rows:
                 messagebox.showinfo("Save Batch List", "No targets to save.")
                 return
     
             with open(path, "w", newline="", encoding="utf-8") as f:
                 w = csv.writer(f)
-                w.writerow([
-                    "Target", "Exp (s)", "Frames",
-                    "Calibrate", "Enabled", "Start Time (Local)",
-                    "Ref Star", "Ref Exp (s)", "Ref Frames"
-                ])
+                w.writerow(self.CSV_HEADER)
                 w.writerows(rows)
     
             # Remember the folder used for future saves/loads
@@ -433,30 +452,36 @@ class BatchTab(ttk.Frame):
         try:
             for i in self.table.get_children():
                 self.table.delete(i)
+            self._row_coords.clear()
     
             with open(path, newline="", encoding="utf-8") as f:
                 r = csv.reader(f)
                 next(r, None)  # skip header
                 count = 0
                 for row in r:
-                    if len(row) < 9:
-                        row = row + [""] * (9 - len(row))
+                    if len(row) < 11:
+                        raise ValueError("Batch CSV must contain 11 columns including RA and Dec.")
                 
-                    # --- NORMALISE CALIBRATION (col 3) ---
-                    raw = row[3].strip().lower()
+                    # --- NORMALISE CALIBRATION (col 5) ---
+                    raw = row[5].strip().lower()
                     if raw in ("x", "no", "false", "0", "✗"):
-                        row[3] = "✗"
+                        row[5] = "✗"
                     else:
-                        row[3] = "✓"
+                        row[5] = "✓"
                 
-                    # --- NORMALISE ENABLED (col 4) ---
-                    raw = row[4].strip().lower()
+                    # --- NORMALISE ENABLED (col 6) ---
+                    raw = row[6].strip().lower()
                     if raw in ("x", "no", "false", "0", "✗"):
-                        row[4] = "✗"
+                        row[6] = "✗"
                     else:
-                        row[4] = "✓"
+                        row[6] = "✓"
                 
-                    self.table.insert("", "end", values=row[:9])
+                    visible_vals = (
+                        row[0], row[3], row[4], row[5], row[6],
+                        row[7], row[8], row[9], row[10]
+                    )
+                    item_id = self.table.insert("", "end", values=visible_vals)
+                    self._row_coords[item_id] = (row[1], row[2])
                     count += 1
     
             # Remember the folder used for future saves/loads
@@ -473,6 +498,14 @@ class BatchTab(ttk.Frame):
             self.context.log(f"Error loading list: {e}")
             messagebox.showerror("Error", f"Failed to load list:\n{e}")
 
+    def _full_row_values(self, item_id):
+        values = list(self.table.item(item_id, "values"))
+        ra, dec = self._row_coords.get(item_id, ("", ""))
+        return (
+            values[0], ra, dec, values[1], values[2],
+            values[3], values[4], values[5], values[6], values[7], values[8]
+        )
+
     # ----------------------------------------------------------------------
     # Run / Stop
     # ----------------------------------------------------------------------
@@ -480,7 +513,7 @@ class BatchTab(ttk.Frame):
         if self.batch_running:
             messagebox.showinfo("Batch", "Already running.")
             return
-        rows = [self.table.item(i, "values") for i in self.table.get_children()]
+        rows = [self._full_row_values(i) for i in self.table.get_children()]
         if not rows:
             messagebox.showinfo("Batch", "No targets in list.")
             return
