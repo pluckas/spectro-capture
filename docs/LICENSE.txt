@@ -1,0 +1,54 @@
+Spectro Capture – Non-Commercial Source License
+© Paul Luckas, 2025
+
+In this license, the term “Software” refers to the collection of Python scripts
+contained in the Spectro Capture project, including any verbatim copies or
+modified versions derived from them.
+
+Permission is hereby granted to any person obtaining a copy of the Software and
+associated documentation files to use, copy, modify, and redistribute the
+Software, subject to the following conditions:
+
+1. Permitted Use
+
+The Software may be used for personal, educational, and research purposes only.
+
+Use of the Software, or of software incorporating the Software in whole or in
+part, for commercial purposes is not permitted without explicit prior written
+permission from the author.
+
+2. Redistribution
+
+Redistribution of the Software, whether in original or modified form, is
+permitted for non-commercial purposes only.
+
+Redistributed copies or derivative works should, where reasonably practicable, retain:
+- Author attribution
+- This license text
+- A notice indicating that the Software has been modified, where applicable
+
+3. Attribution
+
+Attribution to the original author and project is highly encouraged in any
+redistributed or adapted versions of the Software.
+
+Example attribution:
+“Based on Spectro Capture by Paul Luckas.”
+
+4. No Endorsement
+
+Use of the Software does not imply endorsement by the author of any derived work
+or application.
+
+5. No Warranty
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NONINFRINGEMENT.
+
+6. Limitation of Liability
+
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM,
+OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
