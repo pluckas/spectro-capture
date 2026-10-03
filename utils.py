@@ -157,39 +157,21 @@ def next_run_folder(base_path: str, target: str, is_calibration: bool) -> str:
 
     return base_path
 
-def find_latest_calib():
-    year_path = os.path.join(ROOT_PATH, str(datetime.date.today().year))
-    latest, latest_time = None, None
-    if not os.path.exists(year_path):
-        return None
-    for target in os.listdir(year_path):
-        tpath = os.path.join(year_path, target)
-        if not os.path.isdir(tpath):
-            continue
-        for nightly in os.listdir(tpath):
-            npath = os.path.join(tpath, nightly)
-            calib_path = os.path.join(npath, "calib")
-            if os.path.isdir(calib_path):
-                mtime = os.path.getmtime(calib_path)
-                if latest_time is None or mtime > latest_time:
-                    latest_time, latest = mtime, calib_path
-    return latest
-
-
 def copy_latest_calib_to(nightly_path: str, log_fn=print):
+    source = os.path.join(ROOT_PATH, "calib")
     dest = os.path.join(nightly_path, "calib")
+
     if os.path.exists(dest):
         return
-    latest = find_latest_calib()
-    if latest:
+
+    if os.path.isdir(source):
         try:
-            shutil.copytree(latest, dest)
-            log_fn(f"Copied calib from {latest} → {dest}")
+            shutil.copytree(source, dest)
+            log_fn(f"Copied calib from {source} → {dest}")
         except Exception as e:
             log_fn(f"Failed to copy calib: {e}")
     else:
-        log_fn("No 'calib' folder found to copy.")
-
+        log_fn(f"No master 'calib' folder found at {source}.")
 
 # ------------------------------------------------------------
 # Local HH:MM → UTC HH:MM converter
