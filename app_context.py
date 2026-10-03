@@ -86,6 +86,8 @@ class AppContext:
         
         # --- NEW: load root path from config (if set by user) ---
         self.root_path = self.cfg.get("root_path", None)
+        if self.root_path:
+            utils.set_root_path_override(self.root_path)
         
         # >>> BEGIN NEW CODE: persistent folder paths <<<
         # Calibration save folder (bias/darks) – stored by Tools tab
