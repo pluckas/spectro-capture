@@ -36,6 +36,7 @@ function render(state) {
   byId("batch-options").hidden = !batchSchedule;
   if (batchSchedule && !commandPending) renderSchedule();
   targetCount = state.plan.length;
+  targetListRevision = state.target_list_revision;
   byId("batch-csv-controls").hidden = !availableDevices.includes("batch");
   enabledTargets = state.plan.filter((row) => row.enabled).length;
   const exposure = batchStopping ? null : run?.exposure;
@@ -238,6 +239,7 @@ let batchStopping = false;
 let acquisitionBusy = false;
 let enabledTargets = 0;
 let targetCount = 0;
+let targetListRevision;
 let batchSchedule;
 const batchOptionCheckboxes = [
   ["schedule-enabled", "enabled", false],
@@ -311,6 +313,7 @@ function updateDeviceButtons() {
     control.disabled = !canCommand("batch") || batchRunning || acquisitionBusy;
   }
   const canEditTargets = canCommand("batch") && !batchRunning && !acquisitionBusy;
+  byId("batch-clear-targets").disabled = !canEditTargets || !targetCount || !targetListRevision || !!activeTargetEditor;
   byId("batch-add-target").disabled = !canEditTargets || !!activeTargetEditor;
   if (activeTargetEditor) {
     for (const control of activeTargetEditor.row.querySelectorAll("input, button")) {
@@ -405,6 +408,12 @@ for (const [id, field, property] of [
 }
 
 byId("batch-add-target").addEventListener("click", () => openTargetEditor());
+byId("batch-clear-targets").addEventListener("click", () => {
+  const revision = targetListRevision;
+  if (window.confirm(`Clear all ${targetCount} targets from the current batch?`)) {
+    sendDeviceCommand("batch", {action: "clear_targets", revision}, "batch-csv-result");
+  }
+});
 const csvPicker = byId("batch-csv-file");
 byId("batch-load-csv").addEventListener("click", () => csvPicker.click());
 csvPicker.addEventListener("change", async () => {

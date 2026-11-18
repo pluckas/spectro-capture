@@ -117,7 +117,7 @@ def report(context, method, *args, **kwargs):
 
 
 DEVICE_ACTIONS = {
-    "batch": ("run", "stop", "schedule", "load_csv", "download_csv", "edit_target", "save_target_identity", "remove_target"),
+    "batch": ("run", "stop", "schedule", "load_csv", "download_csv", "edit_target", "save_target_identity", "remove_target", "clear_targets"),
     "camera": ("connect", "disconnect", "setpoint", "binning", "cooler_on", "cooler_off"),
     "telescope": ("connect", "disconnect"),
     "dome": ("connect", "disconnect", "open", "close", "home", "park", "abort", "sync_on", "sync_off"),
@@ -209,6 +209,10 @@ class Handler(BaseHTTPRequestHandler):
             elif action in ("edit_target", "save_target_identity", "remove_target"):
                 value = request["edit"]
                 if not isinstance(value, dict):
+                    raise ValueError
+            elif action == "clear_targets":
+                value = request["revision"]
+                if not isinstance(value, str):
                     raise ValueError
             elif action == "schedule":
                 value = request["options"]

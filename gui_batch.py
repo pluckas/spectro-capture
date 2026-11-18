@@ -397,9 +397,7 @@ class BatchTab(ttk.Frame):
         self._row_coords.pop(item, None)
 
     def clear_all(self):
-        for i in self.table.get_children():
-            self.table.delete(i)
-        self._row_coords.clear()
+        self._replace_batch_rows([])
         self.status_lbl.config(text="Cleared all targets")
 
     # ----------------------------------------------------------------------
@@ -602,6 +600,12 @@ class BatchTab(ttk.Frame):
             return self._load_web_batch_csv(value)
         if action == "download_csv":
             return self._download_web_batch_csv()
+        if action == "clear_targets":
+            self._require_target_list_idle()
+            if value != self._target_list_revision(self._batch_rows()):
+                raise ValueError("The target list changed. Review it before clearing.")
+            self.clear_all()
+            return ""
         if action == "remove_target":
             self._require_target_list_idle()
             item, _ = self._check_target_revision(value)
@@ -618,6 +622,9 @@ class BatchTab(ttk.Frame):
     @staticmethod
     def _target_revision(row):
         return sha256(repr(tuple(row)).encode("utf-8")).hexdigest()
+
+    def _target_list_revision(self, rows):
+        return self._target_revision(zip(self.table.get_children(), rows))
 
     def _require_target_list_idle(self):
         if self.batch_running or self.context.camera_work_active():
@@ -810,6 +817,7 @@ class BatchTab(ttk.Frame):
         if rows is None:
             rows = self._batch_rows()
         report(self.context, "publish", plan=describe_rows(rows),
+               target_list_revision=self._target_list_revision(rows),
                target_edits=[{"id": item, "revision": self._target_revision(row), "ra": row[1], "dec": row[2]}
                              for item, row in zip(self.table.get_children(), rows)],
                plan_mode="Hour angle" if self.smart_var.get() else "List order",
