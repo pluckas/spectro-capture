@@ -31,6 +31,7 @@ from tkinter import ttk
 from astropy.io import fits
 import numpy as np
 from PIL import Image, ImageTk
+from web_monitor import report
 
 class ViewerTab(ttk.Frame):
     def __init__(self, parent, context):
@@ -74,9 +75,11 @@ class ViewerTab(ttk.Frame):
         self._raw = scaled.astype(np.uint8)
 
         # Update label with true max ADU
-        self.max_adu_label.config(text=f"Max ADU: {int(round(max_val))}")
+        max_adu = int(round(max_val))
+        self.max_adu_label.config(text=f"Max ADU: {max_adu}")
 
         self._draw_image()
+        report(self.context, "viewer_frame", self._raw, max_adu)
 
     def _draw_image(self):
         if self._raw is None:

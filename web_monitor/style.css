@@ -64,7 +64,6 @@ nav button:hover { background: var(--selected); }
 .workspace-panel > summary { padding: .65rem .9rem; font-size: 1.12rem; font-weight: 600; cursor: pointer; }
 .workspace-panel > summary:hover { background: var(--raised); border-radius: .5rem; }
 .workspace-panel-body { min-width: 0; padding: 0 .9rem .65rem; }
-#theme-open { margin-top: 1rem; padding: .35rem .65rem; border: 0; background: transparent; color: var(--accent); font: inherit; cursor: pointer; }
 #theme-dialog { width: min(24rem, calc(100% - 2rem)); padding: 1.25rem; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: .6rem; }
 #theme-dialog::backdrop { background: rgb(0 0 0 / .55); }
 .theme-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin: .9rem 0 1rem; }
@@ -167,3 +166,8 @@ button.target-control:disabled { color: inherit; cursor: default; }
 .target-dragging { opacity: .55; }
 .drop-before > td { box-shadow: inset 0 2px var(--accent); }
 .drop-after > td { box-shadow: inset 0 -2px var(--accent); }
+#fits-image {
+  max-width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+}

@@ -14,10 +14,11 @@
       <a href="#batch" aria-current="page">Batch Runner</a>
       <button type="button" data-open-panel="targets-panel" aria-controls="targets-panel">Targets</button>
       <button type="button" data-open-panel="recent-panel" aria-controls="recent-panel">Recent Activity</button>
+      <button type="button" data-open-panel="fits-panel" aria-controls="fits-panel">FITS Viewer</button>
       <span>Sequencer</span><span>Telescope</span>
       <span>Guiding</span><span>Focus</span><span>Calibration</span><span>Setup</span>
+      <button id="theme-open" type="button" aria-haspopup="dialog">Theme</button>
     </nav>
-    <button id="theme-open" type="button" aria-haspopup="dialog">Theme</button>
   </aside>
   <dialog id="theme-dialog" aria-labelledby="theme-title">
     <h2 id="theme-title">Theme</h2>
@@ -173,6 +174,13 @@
         <summary>Recent Activity</summary>
         <div class="workspace-panel-body">
           <ol id="events"></ol>
+        </div>
+      </details>
+      <details id="fits-panel" class="workspace-panel">
+        <summary>FITS Viewer</summary>
+        <div class="workspace-panel-body">
+          <img id="fits-image" alt="Latest frame displayed in the desktop FITS Viewer" hidden>
+          <p id="fits-status">Waiting for a frame.</p>
         </div>
       </details>
     </div>

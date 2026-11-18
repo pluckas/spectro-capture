@@ -5,10 +5,12 @@ from concurrent.futures import Future, TimeoutError
 from datetime import datetime, timezone
 from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from io import BytesIO
 import json
 import math
 from pathlib import Path
 from threading import Lock, Thread
+from uuid import uuid4
 
 
 class Monitor:
@@ -16,6 +18,34 @@ class Monitor:
         self.lock = Lock()
         self.state = {"hardware": {}, "plan": [], "run": None}
         self.events = deque(maxlen=40)
+        self._viewer_pixels = None
+        self._viewer_png = None
+
+    def viewer_frame(self, pixels, max_adu):
+        with self.lock:
+            version = uuid4().hex
+            self.state["viewer"] = {"version": version, "max_adu": max_adu}
+            self._viewer_pixels = pixels
+            self._viewer_png = None
+
+    def viewer_png(self, version):
+        from PIL import Image
+
+        with self.lock:
+            frame = self.state.get("viewer")
+            if frame is None or frame["version"] != version:
+                return None
+            if self._viewer_png is not None:
+                return self._viewer_png
+            pixels = self._viewer_pixels
+
+        output = BytesIO()
+        Image.fromarray(pixels).save(output, format="PNG")
+        png = output.getvalue()
+        with self.lock:
+            if self.state.get("viewer") is frame:
+                self._viewer_png = png
+        return png
 
     def publish(self, **values):
         with self.lock:
@@ -170,6 +200,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/status":
             content_type, body = "application/json", self.monitor.snapshot()
+        elif self.path.startswith("/api/viewer/"):
+            body = self.monitor.viewer_png(self.path.removeprefix("/api/viewer/"))
+            if body is None:
+                self.send_error(404)
+                return
+            content_type = "image/png"
         elif self.path in self.assets:
             content_type, body = self.assets[self.path]
         else:

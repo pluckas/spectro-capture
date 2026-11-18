@@ -56,7 +56,34 @@ function element(tag, value) {
   return node;
 }
 
+const fitsPanel = byId("fits-panel");
+const fitsImage = byId("fits-image");
+const fitsStatus = byId("fits-status");
+let viewerFrame;
+
+function renderViewer() {
+  if (!fitsPanel.open || !viewerFrame) return;
+  const source = `/api/viewer/${viewerFrame.version}`;
+  if (fitsImage.getAttribute("src") === source) return;
+  fitsImage.hidden = true;
+  fitsStatus.textContent = "Loading frame…";
+  fitsImage.src = source;
+}
+
+fitsPanel.addEventListener("toggle", renderViewer);
+fitsImage.addEventListener("load", () => {
+  if (fitsImage.getAttribute("src") !== `/api/viewer/${viewerFrame?.version}`) return;
+  fitsStatus.textContent = `Max ADU: ${viewerFrame.max_adu}`;
+  fitsImage.hidden = false;
+});
+fitsImage.addEventListener("error", () => {
+  fitsStatus.textContent = "Waiting for the latest frame…";
+  fitsImage.removeAttribute("src");
+});
+
 function render(state) {
+  viewerFrame = state.viewer;
+  renderViewer();
   const h = state.hardware;
   const shutter = state.dome_status?.shutter;
   const status = [
