@@ -104,3 +104,10 @@ button.target-control:disabled { color: inherit; cursor: default; }
 .target-identity-form input[name="name"] { width: 12rem; }
 .target-edit-result { flex-basis: 100%; }
 .target-edit-result:empty { display: none; }
+
+.target-move-cell { width: 1%; }
+.target-move-handle { color: var(--accent); font: inherit; padding: .1rem .4rem; border: 0; background: transparent; cursor: grab; touch-action: none; }
+.target-move-handle:disabled { opacity: .35; cursor: default; }
+.target-dragging { opacity: .55; }
+.drop-before > td { box-shadow: inset 0 2px var(--accent); }
+.drop-after > td { box-shadow: inset 0 -2px var(--accent); }

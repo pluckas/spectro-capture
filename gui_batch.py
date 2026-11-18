@@ -604,6 +604,8 @@ class BatchTab(ttk.Frame):
             return self._load_web_batch_csv(value)
         if action == "download_csv":
             return self._download_web_batch_csv()
+        if action == "move_target":
+            return self._move_web_target(value)
         if action == "clear_targets":
             self._require_target_list_idle()
             if value != self._target_list_revision(self._batch_rows()):
@@ -631,6 +633,25 @@ class BatchTab(ttk.Frame):
 
     def _target_list_revision(self, rows):
         return self._target_revision(zip(self.table.get_children(), rows))
+
+    def _move_web_target(self, move):
+        self._require_target_list_idle()
+        items = self.table.get_children()
+        rows = [self._full_row_values(item) for item in items]
+        if move.get("revision") != self._target_list_revision(rows):
+            raise ValueError("The target list changed. Review it before reordering.")
+        source, destination, after = (move.get(key) for key in ("id", "destination", "after"))
+        if source not in items or destination not in items or type(after) is not bool:
+            raise ValueError("Invalid target move.")
+        if source == destination:
+            return ""
+        remaining = [item for item in items if item != source]
+        index = remaining.index(destination) + int(after)
+        if index != items.index(source):
+            self.table.move(source, "", index)
+            report(self.context, "publish", run=None)
+            self._publish_batch_status()
+        return ""
 
     def _require_target_list_idle(self):
         if self.batch_running or self.context.camera_work_active():

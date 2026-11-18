@@ -117,14 +117,14 @@
       </div>
       <div class="table-scroll" tabindex="0" role="region" aria-label="Batch target table">
         <table>
-          <thead><tr><th>Target</th><th>Start (UT)</th><th>Exposure</th><th>Frames</th>
+          <thead><tr><th aria-label="Reorder"></th><th>Target</th><th>Start (UT)</th><th>Exposure</th><th>Frames</th>
             <th>Calibration</th><th>Enabled</th><th>Reference</th><th>Status</th></tr></thead>
           <tbody id="rows"></tbody>
         </table>
       </div>
       <template id="target-identity-template">
         <tr class="target-identity-row">
-          <td colspan="8">
+          <td colspan="9">
             <form class="target-identity-form">
               <label>Name <input name="name" maxlength="120" required></label>
               <label>RA <input name="ra" maxlength="40" placeholder="hh:mm:ss"></label>
@@ -139,7 +139,7 @@
       </template>
       <template id="target-reference-template">
         <tr class="target-identity-row">
-          <td colspan="8">
+          <td colspan="9">
             <form class="target-identity-form" aria-label="Reference star">
               <label>Star name <input name="name" maxlength="120" required></label>
               <label>Exposure (s) <input name="seconds" type="number" min="0" step="any" required></label>

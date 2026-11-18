@@ -72,12 +72,14 @@ function render(state) {
 
 let targetTableKey;
 let activeTargetEditor;
+let targetDrag;
 
 function renderTargets(rows, run, edits) {
   const editable = availableDevices.includes("batch") && !batchRunning && !run?.running;
   const key = JSON.stringify([rows, editable ? edits : null, run?.running, run?.active]);
   if (key === targetTableKey) return;
   targetTableKey = key;
+  endTargetDrag();
   const table = byId("rows");
   table.replaceChildren(...rows.map((row, index) => {
     const tr = document.createElement("tr");
@@ -93,7 +95,7 @@ function renderTargets(rows, run, edits) {
       trigger.type = "button";
       trigger.className = "target-control";
       trigger.setAttribute("aria-label", `Edit name and coordinates for ${row.target}`);
-      trigger.addEventListener("click", () => openTargetEditor(edit, row.target, tr));
+      trigger.addEventListener("click", () => openTargetEditor(edit, row.target, tr, null, trigger));
       name.replaceChildren(trigger);
     }
     const referenceCell = element("td", reference || "—");
@@ -107,7 +109,7 @@ function renderTargets(rows, run, edits) {
       }, trigger));
       referenceCell.replaceChildren(trigger);
     }
-    tr.append(name,
+    tr.append(targetMoveHandle(row, edit, tr), name,
       targetField(row, edit, "start_ut", "Start (UT)", row.start_ut || "—"),
       targetField(row, edit, "seconds", "Exposure (s)", `${row.seconds} s`),
       targetField(row, edit, "frames", "Frames", row.frames),
@@ -119,7 +121,7 @@ function renderTargets(rows, run, edits) {
   }));
   if (!rows.length) {
     const cell = element("td", "No batch targets loaded");
-    cell.colSpan = 8;
+    cell.colSpan = 9;
     const row = document.createElement("tr");
     row.append(cell);
     table.append(row);
@@ -135,6 +137,94 @@ function renderTargets(rows, run, edits) {
       table.append(activeTargetEditor.row);
     }
   }
+}
+
+function targetMoveHandle(row, edit, tr) {
+  const cell = document.createElement("td");
+  cell.className = "target-move-cell";
+  if (!edit) return cell;
+  const handle = element("button", "⠿");
+  handle.type = "button";
+  handle.className = "target-move-handle";
+  handle.disabled = true;
+  handle.title = "Drag to reorder, or use Up and Down arrow keys";
+  handle.setAttribute("aria-label", `Reorder ${row.target}`);
+  handle.addEventListener("pointerdown", (event) => {
+    if (handle.disabled || targetDrag || event.button !== 0) return;
+    event.preventDefault();
+    handle.setPointerCapture(event.pointerId);
+    targetDrag = {handle, tr, revision: targetListRevision,
+      pointer: event.pointerId, x: event.clientX, y: event.clientY};
+    tr.classList.add("target-dragging");
+    targetDrag.frame = requestAnimationFrame(updateTargetDrag);
+  });
+  handle.addEventListener("pointermove", (event) => {
+    if (targetDrag?.handle !== handle || event.pointerId !== targetDrag.pointer) return;
+    targetDrag.x = event.clientX;
+    targetDrag.y = event.clientY;
+  });
+  handle.addEventListener("pointerup", (event) => {
+    if (targetDrag?.handle !== handle || event.pointerId !== targetDrag.pointer) return;
+    const destination = targetDropAt(event.clientX, event.clientY, tr);
+    const revision = targetDrag.revision;
+    endTargetDrag();
+    if (destination && !handle.disabled) {
+      moveTarget(edit.id, destination.row.dataset.targetId, destination.after, revision);
+    }
+  });
+  handle.addEventListener("lostpointercapture", () => {
+    if (targetDrag?.handle === handle) endTargetDrag();
+  });
+  handle.addEventListener("keydown", (event) => {
+    if (handle.disabled || !["ArrowUp", "ArrowDown"].includes(event.key)) return;
+    event.preventDefault();
+    const after = event.key === "ArrowDown";
+    const neighbor = after ? tr.nextElementSibling : tr.previousElementSibling;
+    if (neighbor?.dataset.targetId) {
+      moveTarget(edit.id, neighbor.dataset.targetId, after, targetListRevision);
+    }
+  });
+  cell.append(handle);
+  return cell;
+}
+
+function targetDropAt(x, y, source) {
+  const row = document.elementFromPoint(x, y)?.closest("tr[data-target-id]");
+  if (!row || row === source || row.parentElement !== byId("rows")) return null;
+  const bounds = row.getBoundingClientRect();
+  return {row, after: y >= bounds.top + bounds.height / 2};
+}
+
+function updateTargetDrag() {
+  if (!targetDrag) return;
+  const {x, y, tr, handle} = targetDrag;
+  if (handle.disabled) {
+    endTargetDrag();
+    return;
+  }
+  const edge = 48;
+  if (y < edge) window.scrollBy(0, -12);
+  else if (y > window.innerHeight - edge) window.scrollBy(0, 12);
+  targetDrag.mark?.classList.remove("drop-before", "drop-after");
+  const target = targetDropAt(x, y, tr);
+  targetDrag.mark = target?.row;
+  target?.row.classList.add(target.after ? "drop-after" : "drop-before");
+  targetDrag.frame = requestAnimationFrame(updateTargetDrag);
+}
+
+function endTargetDrag() {
+  if (!targetDrag) return;
+  const {handle, tr, mark, pointer, frame} = targetDrag;
+  targetDrag = null;
+  cancelAnimationFrame(frame);
+  tr.classList.remove("target-dragging");
+  mark?.classList.remove("drop-before", "drop-after");
+  if (handle.hasPointerCapture(pointer)) handle.releasePointerCapture(pointer);
+}
+
+function moveTarget(id, destination, after, revision) {
+  sendDeviceCommand("batch", {action: "move_target", edit: {id, destination, after, revision}},
+    "batch-csv-result");
 }
 
 function closeTargetEditor() {
@@ -325,6 +415,9 @@ function updateDeviceButtons() {
     control.disabled = !canCommand("batch") || batchRunning || acquisitionBusy;
   }
   const canEditTargets = canCommand("batch") && !batchRunning && !acquisitionBusy;
+  for (const handle of byId("rows").querySelectorAll(".target-move-handle")) {
+    handle.disabled = !canEditTargets || targetCount < 2 || !targetListRevision || !!activeTargetEditor;
+  }
   byId("batch-clear-targets").disabled = !canEditTargets || !targetCount || !targetListRevision || !!activeTargetEditor;
   byId("batch-add-target").disabled = !canEditTargets || !!activeTargetEditor;
   if (activeTargetEditor) {

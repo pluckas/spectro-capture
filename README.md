@@ -204,3 +204,9 @@ Use the Calibration and Enabled checkboxes to update those options.
 Click a target name to edit its name and coordinates together, or use
 **Add Target** to add a row with the desktop defaults. Enter both RA and
 Dec or leave both blank to resolve the target by name at run time.
+
+
+While the batch is idle, drag a target by its handle to change the shared
+list order. You can also focus the handle and use the Up and Down arrow
+keys. The desktop table and CSV export use the new order. Runs in List
+order mode follow that sequence.
