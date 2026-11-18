@@ -522,6 +522,8 @@ function canCommand(device) {
 const guideControls = byId("guide-controls");
 const guideSeconds = byId("guide-seconds");
 const guideImage = byId("guide-field-image");
+const guidingPanel = byId("guiding-panel");
+const guideRefreshMs = 1000;
 let nextGuideRefresh = 0;
 let guideBusy = false;
 let guideFibreInitialized = false;
@@ -531,13 +533,13 @@ function renderGuiding(state) {
   guideBusy = state.guide_busy === true;
   byId("guide-message").textContent = state.guide_message ?? "";
   byId("guide-snapshot-status").textContent = state.guide_snapshot_message ?? "";
-  if (byId("guiding-panel").open && state.guide_frame) {
+  if (guidingPanel.open && state.guide_frame) {
     const source = `/api/guide-field/${state.guide_frame}`;
     if (guideImage.getAttribute("src") !== source) guideImage.src = source;
   }
-  if (byId("guiding-panel").open && !document.hidden && availableDevices.includes("guiding")
+  if (guidingPanel.open && !document.hidden && availableDevices.includes("guiding")
       && !guideBusy && !commandPending && Date.now() >= nextGuideRefresh) {
-    nextGuideRefresh = Date.now() + 4000;
+    nextGuideRefresh = Date.now() + guideRefreshMs;
     fetch("/api/guiding", {
       method: "POST",
       headers: {"Content-Type": "application/json"},
@@ -854,7 +856,8 @@ async function refresh() {
     byId("connection").textContent = `Connection lost · Last update ${clock(lastUpdate)}`;
   } finally {
     updateDeviceButtons();
-    setTimeout(refresh, 2000);
+    const watchingGuide = guidingPanel.open && !document.hidden && availableDevices.includes("guiding");
+    setTimeout(refresh, watchingGuide ? guideRefreshMs : 2000);
   }
 }
 
