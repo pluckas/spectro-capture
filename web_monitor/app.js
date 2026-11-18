@@ -157,8 +157,9 @@ function updateDeviceButtons() {
   byId("batch-run").disabled = !canCommand("batch") || batchRunning || acquisitionBusy || enabledTargets === 0;
   byId("batch-stop").disabled = !canCommand("batch") || !batchRunning || batchStopping;
   const scheduleLocked = !batchSchedule || !canCommand("batch") || batchRunning || acquisitionBusy;
-  for (const id of ["schedule-enabled", "schedule-ha-min", "schedule-ha-max", "schedule-start"]) {
-    byId(id).disabled = scheduleLocked;
+  byId("schedule-enabled").disabled = scheduleLocked;
+  for (const id of ["schedule-ha-min", "schedule-ha-max", "schedule-start"]) {
+    byId(id).disabled = scheduleLocked || !batchSchedule.enabled;
   }
   for (const device of devices) {
     byId(`${device}-connection`).disabled = !canCommand(device);
