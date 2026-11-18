@@ -15,16 +15,18 @@
       <span>Sequencer</span><span>Targets</span><span>Telescope</span>
       <span>Guiding</span><span>Focus</span><span>Calibration</span><span>Setup</span>
     </nav>
-    <div class="theme-menu">
-      <label for="theme-select">Theme</label>
-      <select id="theme-select">
-        <option value="yellow">Yellow</option>
-        <option value="red">Red</option>
-        <option value="light">Light</option>
-        <option value="blue">Blue</option>
-      </select>
-    </div>
+    <button id="theme-open" type="button" aria-haspopup="dialog">Theme</button>
   </aside>
+  <dialog id="theme-dialog" aria-labelledby="theme-title">
+    <h2 id="theme-title">Theme</h2>
+    <div class="theme-options" role="group" aria-label="Available themes">
+      <button type="button" data-theme-choice="yellow" aria-pressed="true">Yellow</button>
+      <button type="button" data-theme-choice="red" aria-pressed="false">Red</button>
+      <button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
+      <button type="button" data-theme-choice="blue" aria-pressed="false">Blue</button>
+    </div>
+    <form method="dialog" class="theme-actions"><button type="submit">Done</button></form>
+  </dialog>
   <main id="batch">
     <header>
       <h1>Batch Runner</h1>

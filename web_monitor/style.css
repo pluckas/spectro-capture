@@ -58,9 +58,15 @@ nav { display: grid; gap: .25rem; margin-top: 1.5rem; }
 nav > * { padding: .35rem .65rem; }
 nav span { color: var(--muted); }
 nav a { color: var(--accent); background: var(--selected); border-radius: .35rem; }
-.theme-menu { display: flex; align-items: center; flex-wrap: wrap; gap: .4rem; margin-top: 1rem; padding: .35rem .65rem; }
-.theme-menu label { color: var(--muted); }
-.theme-menu select { font: inherit; max-width: 100%; }
+#theme-open { margin-top: 1rem; padding: .35rem .65rem; border: 0; background: transparent; color: var(--accent); font: inherit; cursor: pointer; }
+#theme-dialog { width: min(24rem, calc(100% - 2rem)); padding: 1.25rem; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: .6rem; }
+#theme-dialog::backdrop { background: rgb(0 0 0 / .55); }
+.theme-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin: .9rem 0 1rem; }
+#theme-dialog button { font: inherit; padding: .4rem .75rem; cursor: pointer; }
+.theme-options button { color: var(--text); background: var(--raised); border: 1px solid var(--border); border-radius: .35rem; text-align: left; }
+.theme-options button[aria-pressed="true"] { color: var(--accent); background: var(--selected); border-color: var(--accent); }
+.theme-options button[aria-pressed="true"]::after { content: "✓"; float: right; }
+.theme-actions { display: flex; justify-content: flex-end; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 main { width: 100%; max-width: 85rem; padding: 1.5rem clamp(1rem, 3vw, 2.5rem); }
 header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }

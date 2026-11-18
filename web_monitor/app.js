@@ -3,24 +3,40 @@ const clock = (value) => value ? new Date(value).toISOString().slice(11, 19) + "
 const connected = (value) => value == null ? "—" : value ? "Connected" : "Disconnected";
 const onOff = (value) => value == null ? "—" : value ? "On" : "Off";
 
-const themeSelect = byId("theme-select");
+const themeDialog = byId("theme-dialog");
+const themeChoices = [...themeDialog.querySelectorAll("[data-theme-choice]")];
+
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme;
+  for (const choice of themeChoices) {
+    choice.setAttribute("aria-pressed", String(choice.dataset.themeChoice === theme));
+  }
+}
+
 try {
   const savedTheme = localStorage.getItem("spectro-capture-theme");
-  if (Array.from(themeSelect.options).some((option) => option.value === savedTheme)) {
-    themeSelect.value = savedTheme;
+  if (themeChoices.some((choice) => choice.dataset.themeChoice === savedTheme)) {
+    applyTheme(savedTheme);
   }
 } catch {
-  // The theme still works when browser storage is unavailable.
+  // The default theme works when browser storage is unavailable.
 }
-document.documentElement.dataset.theme = themeSelect.value;
-themeSelect.addEventListener("change", () => {
-  document.documentElement.dataset.theme = themeSelect.value;
-  try {
-    localStorage.setItem("spectro-capture-theme", themeSelect.value);
-  } catch {
-    // Keep the selection for this page even when it cannot be saved.
-  }
+
+byId("theme-open").addEventListener("click", () => {
+  themeDialog.showModal();
+  themeDialog.querySelector('[aria-pressed="true"]').focus();
 });
+for (const choice of themeChoices) {
+  choice.addEventListener("click", () => {
+    const theme = choice.dataset.themeChoice;
+    applyTheme(theme);
+    try {
+      localStorage.setItem("spectro-capture-theme", theme);
+    } catch {
+      // Keep the selection for this page even when it cannot be saved.
+    }
+  });
+}
 
 function element(tag, value) {
   const node = document.createElement(tag);
