@@ -20,7 +20,7 @@ Sequencer or Auto Capture internals.
 
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-import csv, math, os, threading
+import csv, io, math, os, threading
 from batch_runner import run_batch
 from web_monitor import describe_rows, report
 from utils import utc_hhmm_to_local_hhmm
@@ -415,15 +415,13 @@ class BatchTab(ttk.Frame):
             return
     
         try:
-            rows = [self._full_row_values(i) for i in self.table.get_children()]
+            rows = self._batch_rows()
             if not rows:
                 messagebox.showinfo("Save Batch List", "No targets to save.")
                 return
     
             with open(path, "w", newline="", encoding="utf-8") as f:
-                w = csv.writer(f)
-                w.writerow(self.CSV_HEADER)
-                w.writerows(rows)
+                self._write_batch_csv(f, rows)
     
             # Remember the folder used for future saves/loads
             folder = os.path.dirname(path)
@@ -453,40 +451,10 @@ class BatchTab(ttk.Frame):
             return
     
         try:
-            for i in self.table.get_children():
-                self.table.delete(i)
-            self._row_coords.clear()
-    
-            with open(path, newline="", encoding="utf-8") as f:
-                r = csv.reader(f)
-                next(r, None)  # skip header
-                count = 0
-                for row in r:
-                    if len(row) < 11:
-                        raise ValueError("Batch CSV must contain 11 columns including RA and Dec.")
-                
-                    # --- NORMALISE CALIBRATION (col 5) ---
-                    raw = row[5].strip().lower()
-                    if raw in ("x", "no", "false", "0", "✗"):
-                        row[5] = "✗"
-                    else:
-                        row[5] = "✓"
-                
-                    # --- NORMALISE ENABLED (col 6) ---
-                    raw = row[6].strip().lower()
-                    if raw in ("x", "no", "false", "0", "✗"):
-                        row[6] = "✗"
-                    else:
-                        row[6] = "✓"
-                
-                    visible_vals = (
-                        row[0], row[3], row[4], row[5], row[6],
-                        row[7], row[8], row[9], row[10]
-                    )
-                    item_id = self.table.insert("", "end", values=visible_vals)
-                    self._row_coords[item_id] = (row[1], row[2])
-                    count += 1
-    
+            with open(path, newline="", encoding="utf-8-sig") as f:
+                rows = self._read_batch_csv(f)
+            self._replace_batch_rows(rows)
+
             # Remember the folder used for future saves/loads
             folder = os.path.dirname(path)
             try:
@@ -500,6 +468,101 @@ class BatchTab(ttk.Frame):
         except Exception as e:
             self.context.log(f"Error loading list: {e}")
             messagebox.showerror("Error", f"Failed to load list:\n{e}")
+
+    def _batch_rows(self):
+        return [self._full_row_values(item) for item in self.table.get_children()]
+
+    def _write_batch_csv(self, stream, rows):
+        writer = csv.writer(stream)
+        writer.writerow(self.CSV_HEADER)
+        writer.writerows(rows)
+
+    def _read_batch_csv(self, stream, *, validate_targets=False):
+        reader = csv.reader(stream, strict=True)
+        header = next(reader, None)
+        if validate_targets:
+            ut_header = [*self.CSV_HEADER]
+            ut_header[7] = "Start Time (UT)"
+            if header not in (self.CSV_HEADER, ut_header):
+                raise ValueError("Use a Spectro Capture batch CSV with the standard column headings.")
+
+        rows = []
+        for row in reader:
+            if not row:
+                continue
+            if len(row) < len(self.CSV_HEADER) or (validate_targets and len(row) != len(self.CSV_HEADER)):
+                raise ValueError(f"CSV line {reader.line_num}: expected 11 columns including RA and Dec.")
+            row = row[:len(self.CSV_HEADER)]
+            if validate_targets:
+                try:
+                    self._validate_csv_target(row)
+                except ValueError as error:
+                    raise ValueError(f"CSV line {reader.line_num}: {error}") from error
+            for index in (5, 6):
+                row[index] = "✗" if row[index].strip().lower() in ("x", "no", "false", "0", "✗") else "✓"
+            rows.append(row)
+        return rows
+
+    def _validate_csv_target(self, row):
+        from utils import parse_ra_dec_strings
+
+        if not row[0].strip():
+            raise ValueError("Target name is required.")
+        try:
+            parse_ra_dec_strings(row[1], row[2])
+        except ValueError as error:
+            raise ValueError(f"Invalid RA or Dec: {error}") from error
+        if row[7]:
+            # Older desktop exports say Local in the header but store UT.
+            try:
+                if datetime.strptime(row[7], "%H:%M").strftime("%H:%M") != row[7]:
+                    raise ValueError
+            except ValueError:
+                raise ValueError("Start time must be blank or HH:MM UT.") from None
+        for label, seconds, frames in (
+            ("Target", row[3], row[4]),
+            ("Reference", row[9], row[10]),
+        ):
+            if label == "Reference" and not any(field.strip() for field in row[8:]):
+                continue
+            if label == "Reference" and not row[8].strip():
+                raise ValueError("Reference name is required when reference exposure or frames are supplied.")
+            try:
+                duration = float(seconds)
+                if not math.isfinite(duration) or duration <= 0 or int(frames) <= 0:
+                    raise ValueError
+            except ValueError:
+                raise ValueError(f"{label} needs a positive exposure and a positive whole frame count.") from None
+
+    def _replace_batch_rows(self, rows):
+        self.table.delete(*self.table.get_children())
+        self._row_coords.clear()
+        for row in rows:
+            item = self.table.insert("", "end", values=(row[0], *row[3:]))
+            self._row_coords[item] = (row[1], row[2])
+        if not self.batch_running:
+            report(self.context, "publish", run=None)
+        self._publish_batch_status()
+
+    def _load_web_batch_csv(self, contents):
+        if self.batch_running or self.context.camera_work_active():
+            raise RuntimeError("Wait for the current acquisition to finish before loading a CSV.")
+        with io.StringIO(contents.removeprefix("\ufeff"), newline="") as stream:
+            rows = self._read_batch_csv(stream, validate_targets=True)
+        if not rows:
+            raise ValueError("The CSV contains no targets.")
+        self._replace_batch_rows(rows)
+        message = f"Loaded {len(rows)} targets from CSV."
+        self.status_lbl.config(text=message)
+        return message
+
+    def _download_web_batch_csv(self):
+        rows = self._batch_rows()
+        if not rows:
+            raise ValueError("No targets to download.")
+        with io.StringIO(newline="") as stream:
+            self._write_batch_csv(stream, rows)
+            return stream.getvalue()
 
     def _full_row_values(self, item_id):
         values = list(self.table.item(item_id, "values"))
@@ -517,6 +580,10 @@ class BatchTab(ttk.Frame):
             return self.run_batch(from_browser=True)
         if action == "schedule":
             return self._apply_web_schedule(value)
+        if action == "load_csv":
+            return self._load_web_batch_csv(value)
+        if action == "download_csv":
+            return self._download_web_batch_csv()
         return self.stop_batch(from_browser=True)
 
     WEB_BATCH_CHECKBOXES = {
@@ -579,7 +646,7 @@ class BatchTab(ttk.Frame):
     def _start_batch(self):
         if self.batch_running or self.context.camera_work_active():
             raise RuntimeError("Wait for the current acquisition to finish.")
-        rows = [self._full_row_values(item) for item in self.table.get_children()]
+        rows = self._batch_rows()
         if not any(row["enabled"] for row in describe_rows(rows)):
             raise ValueError("No enabled targets in the batch.")
 
@@ -641,7 +708,7 @@ class BatchTab(ttk.Frame):
         if getattr(self.context, "web_monitor", None) is None:
             return
         if rows is None:
-            rows = [self._full_row_values(item) for item in self.table.get_children()]
+            rows = self._batch_rows()
         report(self.context, "publish", plan=describe_rows(rows),
                plan_mode="Hour angle" if self.smart_var.get() else "List order",
                batch_running=self.batch_running,

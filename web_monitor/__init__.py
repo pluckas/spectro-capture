@@ -117,7 +117,7 @@ def report(context, method, *args, **kwargs):
 
 
 DEVICE_ACTIONS = {
-    "batch": ("run", "stop", "schedule"),
+    "batch": ("run", "stop", "schedule", "load_csv", "download_csv"),
     "camera": ("connect", "disconnect", "setpoint", "binning", "cooler_on", "cooler_off"),
     "telescope": ("connect", "disconnect"),
     "dome": ("connect", "disconnect", "open", "close", "home", "park", "abort", "sync_on", "sync_off"),
@@ -187,12 +187,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             size = int(self.headers.get("Content-Length", "0"))
-            if not 0 < size <= 256:
-                raise ValueError
+            limit = 1024 * 1024 if device == "batch" else 256
+            if not 0 < size <= limit:
+                self.respond_json(413, "Request is empty or too large.")
+                return
             self.connection.settimeout(3)
             request = json.loads(self.rfile.read(size))
             action = request["action"]
-            if action not in DEVICE_ACTIONS[device]:
+            if action not in DEVICE_ACTIONS[device] or (size > 256 and action != "load_csv"):
                 raise ValueError
             value = None
             if action == "setpoint":
@@ -200,6 +202,10 @@ class Handler(BaseHTTPRequestHandler):
                 if type(value) not in (float, int) or not math.isfinite(value):
                     raise ValueError
                 value = float(value)
+            elif action == "load_csv":
+                value = request["csv"]
+                if not isinstance(value, str) or "\x00" in value:
+                    raise ValueError
             elif action == "schedule":
                 value = request["options"]
                 if not isinstance(value, dict):
@@ -213,7 +219,10 @@ class Handler(BaseHTTPRequestHandler):
             return
 
         status, message = self.commands.submit(device, action, value)
-        self.respond_json(status, message)
+        if action == "download_csv" and status == 200:
+            self.respond(status, "text/csv; charset=utf-8", message.encode("utf-8"))
+        else:
+            self.respond_json(status, message)
 
     def respond_json(self, status, message):
         self.respond(status, "application/json", json.dumps({"message": message}).encode())

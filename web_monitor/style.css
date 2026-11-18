@@ -76,8 +76,8 @@ time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .6
 
 .batch-commands { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem .75rem; margin-top: .75rem; }
 .batch-commands button { font: inherit; padding: .3rem .85rem; }
-#batch-result { flex-basis: 100%; }
-#batch-result:empty { display: none; }
+#batch-result, #batch-csv-result { flex-basis: 100%; }
+#batch-result:empty, #batch-csv-result:empty { display: none; }
 
 #batch-options { flex-basis: 100%; }
 #batch-options summary { cursor: pointer; color: var(--accent); }

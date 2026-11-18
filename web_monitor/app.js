@@ -35,6 +35,8 @@ function render(state) {
   batchSchedule = state.batch_schedule;
   byId("batch-options").hidden = !batchSchedule;
   if (batchSchedule && !commandPending) renderSchedule();
+  targetCount = state.plan.length;
+  byId("batch-csv-controls").hidden = !availableDevices.includes("batch");
   enabledTargets = state.plan.filter((row) => row.enabled).length;
   const exposure = batchStopping ? null : run?.exposure;
   const mode = batchRunning && run?.running ? run.mode : state.plan_mode ?? "";
@@ -95,6 +97,7 @@ let batchRunning = false;
 let batchStopping = false;
 let acquisitionBusy = false;
 let enabledTargets = 0;
+let targetCount = 0;
 let batchSchedule;
 const batchOptionCheckboxes = [
   ["schedule-enabled", "enabled", false],
@@ -165,6 +168,8 @@ function canCommand(device) {
 
 function updateDeviceButtons() {
   byId("batch-run").disabled = !canCommand("batch") || batchRunning || acquisitionBusy || enabledTargets === 0;
+  byId("batch-load-csv").disabled = !canCommand("batch") || batchRunning || acquisitionBusy;
+  byId("batch-download-csv").disabled = !canCommand("batch") || targetCount === 0;
   byId("batch-stop").disabled = !canCommand("batch") || !batchRunning || batchStopping;
   const scheduleLocked = !batchSchedule || !canCommand("batch") || batchRunning || acquisitionBusy;
   for (const [id, , requiresScheduling] of batchOptionCheckboxes) {
@@ -249,9 +254,38 @@ for (const [id, field, property] of [
   }
 }
 
-async function sendDeviceCommand(device, command) {
+const csvPicker = byId("batch-csv-file");
+byId("batch-load-csv").addEventListener("click", () => csvPicker.click());
+csvPicker.addEventListener("change", async () => {
+  const file = csvPicker.files[0];
+  csvPicker.value = "";
+  if (!file || byId("batch-load-csv").disabled) return;
+  if (targetCount && !window.confirm("Replace the current batch target list?")) return;
+
+  let csv;
+  try {
+    if (file.size > 1024 * 1024) {
+      byId("batch-csv-result").textContent = "Choose a CSV smaller than 1 MiB.";
+      return;
+    }
+    csv = new TextDecoder("utf-8", {fatal: true}).decode(await file.arrayBuffer());
+  } catch {
+    byId("batch-csv-result").textContent = "Could not read the file as UTF-8 CSV.";
+    return;
+  }
+  if (byId("batch-load-csv").disabled) {
+    byId("batch-csv-result").textContent = "Cannot load the CSV right now. Try again when the batch is idle.";
+    return;
+  }
+  sendDeviceCommand("batch", {action: "load_csv", csv}, "batch-csv-result");
+});
+byId("batch-download-csv").addEventListener("click", () => {
+  sendDeviceCommand("batch", {action: "download_csv"}, "batch-csv-result");
+});
+
+async function sendDeviceCommand(device, command, resultId = `${device}-result`) {
   if (!canCommand(device)) return;
-  const result = byId(`${device}-result`);
+  const result = byId(resultId);
   result.textContent = "Waiting for Spectro Capture…";
   commandPending = true;
   updateDeviceButtons();
@@ -262,7 +296,17 @@ async function sendDeviceCommand(device, command) {
       body: JSON.stringify(command),
       signal: AbortSignal.timeout(15000),
     });
-    result.textContent = (await response.json()).message;
+    if (command.action === "download_csv" && response.ok) {
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "batch-targets.csv";
+      link.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      result.textContent = "";
+    } else {
+      result.textContent = (await response.json()).message;
+    }
   } catch {
     result.textContent = "No command result received. Check status before trying again.";
   } finally {

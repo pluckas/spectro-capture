@@ -184,3 +184,13 @@ the Windows Batch tab.
 In the browser’s Batch Runner card, **Run** starts the loaded batch using
 those settings. **Stop** requests the same stop as the desktop Batch tab.
 Wait for cleanup to finish before starting another batch.
+
+
+#### Batch CSV files
+
+Use **Load CSV** under **Targets** to pick a Spectro Capture CSV from
+the browser's computer, a synced folder, or a mounted share. A valid
+import replaces the current desktop and browser target list. **Download
+CSV** exports that list with RA, Dec, and reference settings included.
+Per-target start times are stored as UT, including in desktop-compatible
+exports whose column header reads `Start Time (Local)`.
