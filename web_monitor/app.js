@@ -107,6 +107,7 @@ function render(state) {
   batchStopping = state.batch_stopping === true;
   acquisitionBusy = state.acquisition_busy === true;
   batchSchedule = state.batch_schedule;
+  renderCalibration(state.calibration_settings);
   byId("batch-options").hidden = !batchSchedule;
   if (batchSchedule && !commandPending) renderSchedule();
   targetCount = state.plan.length;
@@ -483,10 +484,48 @@ function setPanelOpen(device, open) {
 
 function canCommand(device) {
   return statusLive && !commandPending && availableDevices.includes(device) &&
-    (device === "batch" || typeof hardwareState[device] === "boolean");
+    (device === "batch" || device === "calibration" || typeof hardwareState[device] === "boolean");
 }
 
+const calibrationForm = byId("calibration-form");
+const calibrationFields = [...calibrationForm.querySelectorAll('input[type="number"]')];
+const calibrationName = byId("calibration-name");
+const calibrationSave = byId("calibration-save");
+const calibrationRun = byId("calibration-run");
+
+function renderCalibration(settings) {
+  calibrationForm.hidden = !settings;
+  if (!settings || commandPending) return;
+  for (const input of calibrationFields) {
+    if (!input.dataset.edited && document.activeElement !== input) input.value = settings[input.name];
+  }
+}
+
+calibrationForm.addEventListener("input", (event) => {
+  if (calibrationFields.includes(event.target)) event.target.dataset.edited = "true";
+  updateDeviceButtons();
+});
+
+calibrationForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const run = event.submitter === calibrationRun;
+  if ((run ? calibrationRun : calibrationSave).disabled) return;
+  const options = Object.fromEntries(calibrationFields.map((input) => [input.name, input.valueAsNumber]));
+  if (run) options.name = calibrationName.value.trim();
+  const saved = await sendDeviceCommand("calibration", {
+    action: run ? "start_calibration" : "save_settings",
+    options,
+  });
+  if (saved) {
+    for (const input of calibrationFields) delete input.dataset.edited;
+  }
+});
+
 function updateDeviceButtons() {
+  const calibrationLocked = !canCommand("calibration") || batchRunning || acquisitionBusy;
+  for (const input of calibrationFields) input.disabled = calibrationLocked;
+  calibrationSave.disabled = calibrationLocked;
+  calibrationRun.disabled = calibrationLocked || hardwareState.camera !== true || !calibrationName.value.trim();
   for (const control of byId("rows").querySelectorAll(".target-control")) {
     control.disabled = !canCommand("batch") || batchRunning || acquisitionBusy;
   }

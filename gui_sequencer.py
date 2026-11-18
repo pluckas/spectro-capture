@@ -31,8 +31,13 @@ import threading
 import time
 import os
 import tempfile
+import math
+import re
+from pathlib import Path, PureWindowsPath
 from astropy.io import fits
 import numpy as np
+import utils
+from web_monitor import report
 
 from utils import nightly_folder, next_run_folder, copy_latest_calib_to, lamp_on, lamp_off, SafeLogMixin
 from sequencer_logic import expose_and_save
@@ -166,6 +171,10 @@ class SequencerTab(ttk.Frame, SafeLogMixin):
     # --- UI status loop ---
     def refresh_status(self):
         try:
+            if getattr(self.context, "web_monitor", None) is not None:
+                report(self.context, "publish", calibration_settings={
+                    key: getattr(self, key).get() for key in self.CALIBRATION_FIELDS
+                })
             # Update binning label (stored in indicators dict now)
             self.indicators["bin_lbl"].config(text=f"{self.context.current_binning}")
 
@@ -217,6 +226,56 @@ class SequencerTab(ttk.Frame, SafeLogMixin):
             pass
 
     # --- Actions (LIVE) ---
+    CALIBRATION_FIELDS = ("tung_exp", "tung_count", "thor_exp", "thor_count")
+
+    def run_web_calibration_command(self, action, options):
+        batch = getattr(self.context, "batch_tab", None)
+        if self.sequence_running or self.context.camera_work_active() or getattr(batch, "batch_running", False):
+            raise ValueError("Calibration controls are unavailable during acquisition or a batch.")
+
+        settings = {}
+        for key in self.CALIBRATION_FIELDS:
+            value = options.get(key)
+            if key.endswith("_count"):
+                if type(value) is not int or value < 0:
+                    raise ValueError("Frame counts must be non-negative whole numbers.")
+            elif type(value) not in (float, int) or not math.isfinite(value) or value <= 0:
+                raise ValueError("Exposure times must be positive numbers.")
+            settings[key] = value
+        if not (settings["tung_count"] or settings["thor_count"]):
+            raise ValueError("Specify at least one calibration frame.")
+
+        if action == "start_calibration":
+            name = options.get("name")
+            if not isinstance(name, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9 _-]{0,59}", name.strip()):
+                raise ValueError("Enter a run name using letters, numbers, spaces, hyphens or underscores.")
+            name = name.strip()
+            if name.upper() == "CALIB" or PureWindowsPath(name).is_reserved():
+                raise ValueError("Choose a different run name.")
+            if not (self.context.camera and getattr(self.context.camera, "Connected", False)):
+                raise ValueError("Camera not connected.")
+            night = utils.observing_night_date_str().replace("-", "")
+            base = Path(utils.ROOT_PATH) / night[:4] / night[2:] / "Manual Calibration"
+            base.mkdir(parents=True, exist_ok=True)
+            index = 1
+            while True:
+                save_path = base / (name if index == 1 else f"{name}-{index:02d}")
+                try:
+                    save_path.mkdir()
+                    break
+                except FileExistsError:
+                    index += 1
+
+        for key, value in settings.items():
+            entry = getattr(self, key)
+            entry.delete(0, "end")
+            entry.insert(0, str(value))
+
+        if action == "start_calibration":
+            self._start_calibration(name, str(save_path), *settings.values(), int(self.context.current_binning))
+            return f"Calibration started in Manual Calibration/{save_path.name}."
+        return "Calibration settings applied."
+
     def run_calibration(self):
         if not self._guard_connected(): return
         target = self.target_entry.get().strip()
@@ -236,7 +295,9 @@ class SequencerTab(ttk.Frame, SafeLogMixin):
 
         base      = nightly_folder(target)
         save_path = next_run_folder(base, target, True)
+        self._start_calibration(target, save_path, tung_exp, tung_count, thor_exp, thor_count, binning)
 
+    def _start_calibration(self, target, save_path, tung_exp, tung_count, thor_exp, thor_count, binning):
         # Update UI now, then run worker
         self._on_run_start()
         self.status_lbl.config(text="Running calibration sequence")

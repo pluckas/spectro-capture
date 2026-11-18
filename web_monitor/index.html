@@ -16,7 +16,9 @@
       <button type="button" data-open-panel="recent-panel" aria-controls="recent-panel">Recent Activity</button>
       <button type="button" data-open-panel="fits-panel" aria-controls="fits-panel">FITS Viewer</button>
       <span>Sequencer</span><span>Telescope</span>
-      <span>Guiding</span><span>Focus</span><span>Calibration</span><span>Setup</span>
+      <span>Guiding</span><span>Focus</span>
+      <button type="button" data-open-panel="calibration-panel" aria-controls="calibration-panel">Calibration</button>
+      <span>Setup</span>
       <button id="theme-open" type="button" aria-haspopup="dialog">Theme</button>
     </nav>
   </aside>
@@ -177,6 +179,30 @@
         <summary>Recent Activity</summary>
         <div class="workspace-panel-body">
           <ol id="events"></ol>
+        </div>
+      </details>
+      <details id="calibration-panel" class="workspace-panel">
+        <summary>Calibration</summary>
+        <div class="workspace-panel-body">
+          <form id="calibration-form" hidden>
+            <p>Batch Runner and standalone calibration use these settings.</p>
+            <fieldset class="batch-option-group">
+              <legend>Tungsten</legend>
+              <label>Exposure (s) <input name="tung_exp" type="number" min="0" step="any" required></label>
+              <label>Frames <input name="tung_count" type="number" min="0" step="1" required></label>
+            </fieldset>
+            <fieldset class="batch-option-group">
+              <legend>Thorium</legend>
+              <label>Exposure (s) <input name="thor_exp" type="number" min="0" step="any" required></label>
+              <label>Frames <input name="thor_count" type="number" min="0" step="1" required></label>
+            </fieldset>
+            <div class="batch-commands">
+              <button id="calibration-save" type="submit">Apply Settings</button>
+              <label>Run name <input id="calibration-name" type="text" maxlength="60"></label>
+              <button id="calibration-run" type="submit">Run Calibration</button>
+            </div>
+          </form>
+          <p id="calibration-result" role="status"></p>
         </div>
       </details>
       <details id="fits-panel" class="workspace-panel">
