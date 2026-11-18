@@ -482,9 +482,19 @@ class BatchTab(ttk.Frame):
         reader = csv.reader(stream, strict=True)
         header = next(reader, None)
         if validate_targets:
-            ut_header = [*self.CSV_HEADER]
-            ut_header[7] = "Start Time (UT)"
-            if header not in (self.CSV_HEADER, ut_header):
+            expected = [column.casefold() for column in self.CSV_HEADER]
+            columns = [column.strip().casefold() for column in (header or ())]
+            if len(columns) == len(expected):
+                aliases = {
+                    3: {"exposure (s)"},
+                    4: {"count"},
+                    5: {"calibration"},
+                    7: {"start time (ut)", "start time ut"},
+                }
+                for index, names in aliases.items():
+                    if columns[index] in names:
+                        columns[index] = expected[index]
+            if columns != expected:
                 raise ValueError("Use a Spectro Capture batch CSV with the standard column headings.")
 
         rows = []
