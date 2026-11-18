@@ -521,6 +521,8 @@ function canCommand(device) {
 
 const guideControls = byId("guide-controls");
 const guideSeconds = byId("guide-seconds");
+const guideImage = byId("guide-field-image");
+let nextGuideRefresh = 0;
 let guideBusy = false;
 let guideFibreInitialized = false;
 
@@ -528,6 +530,21 @@ function renderGuiding(state) {
   guideControls.hidden = !availableDevices.includes("guiding");
   guideBusy = state.guide_busy === true;
   byId("guide-message").textContent = state.guide_message ?? "";
+  byId("guide-snapshot-status").textContent = state.guide_snapshot_message ?? "";
+  if (byId("guiding-panel").open && state.guide_frame) {
+    const source = `/api/guide-field/${state.guide_frame}`;
+    if (guideImage.getAttribute("src") !== source) guideImage.src = source;
+  }
+  if (byId("guiding-panel").open && !document.hidden && availableDevices.includes("guiding")
+      && !guideBusy && !commandPending && Date.now() >= nextGuideRefresh) {
+    nextGuideRefresh = Date.now() + 4000;
+    fetch("/api/guiding", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({action: "snapshot"}),
+      signal: AbortSignal.timeout(5000),
+    }).catch(() => {});
+  }
   if (!guideSeconds.options.length && state.guide_exposure_choices) {
     guideSeconds.replaceChildren(new Option("Select exposure", ""), ...state.guide_exposure_choices.map(
       (value) => new Option(value, value)));
@@ -537,6 +554,9 @@ function renderGuiding(state) {
     guideFibreInitialized = true;
   }
 }
+
+guideImage.addEventListener("load", () => { guideImage.hidden = false; });
+guideImage.addEventListener("error", () => { guideImage.hidden = true; });
 
 for (const button of guideControls.querySelectorAll("[data-guide-action]")) {
   button.addEventListener("click", () => sendDeviceCommand("guiding", {action: button.dataset.guideAction}));

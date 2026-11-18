@@ -31,6 +31,9 @@ import json
 import math
 import os
 import socket
+import tempfile
+import time
+from io import BytesIO
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 from pathlib import Path
@@ -58,6 +61,7 @@ class GuideTab(ttk.Frame):
         self.host = "localhost"
         self.phd = None
         self._busy = False
+        self._snapshot_lock = threading.Lock()
     
         self.create_widgets()
         self.load_fibre_position()
@@ -182,6 +186,10 @@ class GuideTab(ttk.Frame):
 
 
     def run_web_guide_command(self, action, options):
+        if action == "snapshot":
+            if self._snapshot_lock.acquire(blocking=False):
+                threading.Thread(target=self.snapshot_guide_field, daemon=True).start()
+            return ""
         batch = getattr(self.context, "batch_tab", None)
         if self._busy or getattr(batch, "batch_running", False):
             raise RuntimeError("Wait for the current guide command or batch to finish.")
@@ -212,6 +220,47 @@ class GuideTab(ttk.Frame):
             command = commands[action]
         self.run_threaded(command)
         return "Guide command queued."
+
+    def snapshot_guide_field(self):
+        try:
+            import numpy as np
+            from astropy.io import fits
+            from PIL import Image
+
+            with tempfile.TemporaryDirectory() as folder:
+                path = Path(folder) / "guide.fits"
+                request = {"jsonrpc": "2.0", "method": "save_image",
+                           "params": {"filename": str(path)}, "id": 1}
+                # A dedicated read-only connection keeps snapshot replies separate from guide commands.
+                with socket.create_connection((self.host, 4400), timeout=3) as client:
+                    client.sendall((json.dumps(request) + "\r\n").encode())
+                    deadline = time.monotonic() + 5
+                    with client.makefile("rb") as replies:
+                        while time.monotonic() < deadline:
+                            client.settimeout(max(0.001, deadline - time.monotonic()))
+                            line = replies.readline()
+                            if not line:
+                                raise ConnectionError("PHD2 closed the snapshot connection.")
+                            response = json.loads(line)
+                            if response.get("id") == 1:
+                                if "error" in response:
+                                    raise RuntimeError(response["error"]["message"])
+                                break
+                        else:
+                            raise TimeoutError("PHD2 did not return a snapshot.")
+                pixels = np.asarray(fits.getdata(path), dtype=np.float32)
+            pixels = np.nan_to_num(pixels)
+            low, high = np.percentile(pixels, (1, 99))
+            image = Image.fromarray(np.clip((pixels - low) * (255 / max(high - low, 1)), 0, 255).astype(np.uint8))
+            image.thumbnail((1200, 1200))
+            output = BytesIO()
+            image.save(output, format="PNG", compress_level=1)
+            report(self.context, "guide_frame", output.getvalue())
+            report(self.context, "publish", guide_snapshot_message="")
+        except Exception as error:
+            report(self.context, "publish", guide_snapshot_message=f"Guide snapshot failed: {error}")
+        finally:
+            self._snapshot_lock.release()
 
     def log(self, msg):
         report(self.context, "publish", guide_message=msg)

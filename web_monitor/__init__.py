@@ -20,6 +20,16 @@ class Monitor:
         self.events = deque(maxlen=40)
         self._viewer_pixels = None
         self._viewer_png = None
+        self._guide_png = None
+
+    def guide_frame(self, png):
+        with self.lock:
+            self.state["guide_frame"] = uuid4().hex
+            self._guide_png = png
+
+    def guide_png(self, version):
+        with self.lock:
+            return self._guide_png if self.state.get("guide_frame") == version else None
 
     def viewer_frame(self, pixels, max_adu):
         with self.lock:
@@ -147,7 +157,7 @@ def report(context, method, *args, **kwargs):
 
 
 DEVICE_ACTIONS = {
-    "guiding": ("status", "loop", "find_star", "guide", "pause", "resume", "restore", "stop",
+    "guiding": ("status", "loop", "find_star", "guide", "pause", "resume", "restore", "stop", "snapshot",
                 "up", "down", "left", "right", "exposure", "save_fibre"),
     "lamps": ("tungsten", "thorium", "off"),
     "calibration": ("save_settings", "start_calibration"),
@@ -204,6 +214,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/status":
             content_type, body = "application/json", self.monitor.snapshot()
+        elif self.path.startswith("/api/guide-field/"):
+            body = self.monitor.guide_png(self.path.removeprefix("/api/guide-field/"))
+            if body is None:
+                self.send_error(404)
+                return
+            content_type = "image/png"
         elif self.path.startswith("/api/viewer/"):
             body = self.monitor.viewer_png(self.path.removeprefix("/api/viewer/"))
             if body is None:
