@@ -34,7 +34,7 @@ function render(state) {
   acquisitionBusy = state.acquisition_busy === true;
   batchSchedule = state.batch_schedule;
   byId("batch-options").hidden = !batchSchedule;
-  if (batchSchedule && !scheduleDirty) renderSchedule();
+  if (batchSchedule && !commandPending) renderSchedule();
   enabledTargets = state.plan.filter((row) => row.enabled).length;
   const exposure = batchStopping ? null : run?.exposure;
   const mode = batchRunning && run?.running ? run.mode : state.plan_mode ?? "";
@@ -96,13 +96,21 @@ let batchStopping = false;
 let acquisitionBusy = false;
 let enabledTargets = 0;
 let batchSchedule;
-let scheduleDirty = false;
+
 
 function renderSchedule() {
   byId("schedule-enabled").checked = batchSchedule.enabled;
-  byId("schedule-ha-min").value = batchSchedule.ha_min ?? "";
-  byId("schedule-ha-max").value = batchSchedule.ha_max ?? "";
-  byId("schedule-start").value = batchSchedule.start_local;
+  for (const [id, value] of [["schedule-ha-min", batchSchedule.ha_min], ["schedule-ha-max", batchSchedule.ha_max]]) {
+    const input = byId(id);
+    if (document.activeElement !== input) input.value = value ?? "";
+  }
+  const start = byId("schedule-start");
+  const times = ["", ...batchSchedule.start_times];
+  if (!times.includes(batchSchedule.start_local)) times.push(batchSchedule.start_local);
+  if (Array.from(start.options, (option) => option.value).join() !== times.join()) {
+    start.replaceChildren(...times.map((time) => new Option(time || "No scheduled start", time)));
+  }
+  start.value = batchSchedule.start_local;
 }
 const domeOperations = byId("dome-operations");
 const domeActions = domeOperations.querySelectorAll("[data-action]");
@@ -146,15 +154,12 @@ function canCommand(device) {
 }
 
 function updateDeviceButtons() {
-  byId("batch-run").disabled = !canCommand("batch") || batchRunning || acquisitionBusy || scheduleDirty || enabledTargets === 0;
+  byId("batch-run").disabled = !canCommand("batch") || batchRunning || acquisitionBusy || enabledTargets === 0;
   byId("batch-stop").disabled = !canCommand("batch") || !batchRunning || batchStopping;
   const scheduleLocked = !batchSchedule || !canCommand("batch") || batchRunning || acquisitionBusy;
   for (const id of ["schedule-enabled", "schedule-ha-min", "schedule-ha-max", "schedule-start"]) {
     byId(id).disabled = scheduleLocked;
   }
-  byId("schedule-apply").disabled = scheduleLocked || !scheduleDirty;
-  byId("schedule-reset").hidden = !scheduleDirty;
-  byId("schedule-reset").disabled = commandPending;
   for (const device of devices) {
     byId(`${device}-connection`).disabled = !canCommand(device);
   }
@@ -213,31 +218,23 @@ byId("batch-run").addEventListener("click", () => {
 });
 byId("batch-stop").addEventListener("click", () => sendDeviceCommand("batch", {action: "stop"}));
 
-byId("batch-schedule").addEventListener("input", () => {
-  scheduleDirty = true;
-  byId("batch-result").textContent = "Apply or discard scheduling changes before running.";
-  updateDeviceButtons();
-});
-byId("schedule-reset").addEventListener("click", () => {
-  scheduleDirty = false;
-  renderSchedule();
-  byId("batch-result").textContent = "";
-  updateDeviceButtons();
-});
-byId("batch-schedule").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  if (byId("schedule-apply").disabled) return;
-  const options = {
-    enabled: byId("schedule-enabled").checked,
-    ha_min: byId("schedule-ha-min").valueAsNumber,
-    ha_max: byId("schedule-ha-max").valueAsNumber,
-    start_local: byId("schedule-start").value,
-  };
-  if (await sendDeviceCommand("batch", {action: "schedule", options})) {
-    scheduleDirty = false;
-    updateDeviceButtons();
+for (const [id, field, property] of [
+  ["schedule-enabled", "enabled", "checked"],
+  ["schedule-ha-min", "ha_min", "valueAsNumber"],
+  ["schedule-ha-max", "ha_max", "valueAsNumber"],
+  ["schedule-start", "start_local", "value"],
+]) {
+  const input = byId(id);
+  input.addEventListener("change", () => {
+    if (input.disabled || !batchSchedule) return;
+    sendDeviceCommand("batch", {action: "schedule", options: {[field]: input[property]}});
+  });
+  if (property === "valueAsNumber") {
+    input.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") input.blur();
+    });
   }
-});
+}
 
 async function sendDeviceCommand(device, command) {
   if (!canCommand(device)) return;
@@ -253,7 +250,6 @@ async function sendDeviceCommand(device, command) {
       signal: AbortSignal.timeout(15000),
     });
     result.textContent = (await response.json()).message;
-    return response.ok;
   } catch {
     result.textContent = "No command result received. Check status before trying again.";
   } finally {

@@ -154,7 +154,7 @@ class BatchTab(ttk.Frame):
             row=0, column=5, sticky="e"
         )
         
-        time_options = (
+        self.scheduler_start_times = (
             [f"{h:02d}:00" for h in range(18, 24)] +
             [f"{h:02d}:00" for h in range(0, 7)]
         )
@@ -162,7 +162,7 @@ class BatchTab(ttk.Frame):
         self.start_entry = ttk.Combobox(
             self.scheduler_frame,
             width=6,
-            values=time_options,
+            values=self.scheduler_start_times,
             textvariable=self.batch_start_local,
             state="readonly"
         )
@@ -522,27 +522,24 @@ class BatchTab(ttk.Frame):
     def _apply_web_schedule(self, options):
         if self.batch_running or self.context.camera_work_active():
             raise RuntimeError("Wait for the current acquisition to finish.")
-        enabled = options.get("enabled")
-        ha_min = options.get("ha_min")
-        ha_max = options.get("ha_max")
-        start = options.get("start_local")
-        if type(enabled) is not bool:
-            raise ValueError("Choose whether to enable Smart HA Scheduling.")
-        if (type(ha_min) not in (int, float) or type(ha_max) not in (int, float)
-                or not -6 <= ha_min <= ha_max <= 6):
-            raise ValueError("Enter HA limits between −6 and +6 hours, with Min at or below Max.")
-        if start != "":
-            try:
-                if not isinstance(start, str) or datetime.strptime(start, "%H:%M").strftime("%H:%M") != start:
-                    raise ValueError
-            except ValueError:
-                raise ValueError("Enter an observatory start time as HH:MM, or leave it blank.") from None
+        if len(options) != 1:
+            raise ValueError("Change one scheduling option at a time.")
+        field, value = next(iter(options.items()))
+        if field == "enabled" and type(value) is bool:
+            self.smart_var.set(value)
+            self._set_scheduler_enabled(value)
+        elif field == "start_local" and (value == "" or value in self.scheduler_start_times):
+            self.batch_start_local.set(value)
+        elif field in ("ha_min", "ha_max"):
+            schedule = self._web_schedule() | options
+            low, high = schedule["ha_min"], schedule["ha_max"]
+            if (type(low) not in (int, float) or type(high) not in (int, float)
+                    or not -6 <= low <= high <= 6):
+                raise ValueError("Enter HA limits between −6 and +6 hours, with Min at or below Max.")
+            (self.ha_min_var if field == "ha_min" else self.ha_max_var).set(value)
+        else:
+            raise ValueError("Invalid scheduling option.")
 
-        self.ha_min_var.set(ha_min)
-        self.ha_max_var.set(ha_max)
-        self.batch_start_local.set(start)
-        self.smart_var.set(enabled)
-        self._set_scheduler_enabled(enabled)
         self._publish_batch_status()
         return "Scheduling options applied."
 
@@ -555,7 +552,7 @@ class BatchTab(ttk.Frame):
                 value = None
             limits.append(value if value is not None and math.isfinite(value) else None)
         return {"enabled": self.smart_var.get(), "ha_min": limits[0], "ha_max": limits[1],
-                "start_local": self.batch_start_local.get()}
+                "start_local": self.batch_start_local.get(), "start_times": self.scheduler_start_times}
 
     def run_batch(self, *, from_browser=False):
         try:
