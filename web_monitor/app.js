@@ -3,6 +3,25 @@ const clock = (value) => value ? new Date(value).toISOString().slice(11, 19) + "
 const connected = (value) => value == null ? "—" : value ? "Connected" : "Disconnected";
 const onOff = (value) => value == null ? "—" : value ? "On" : "Off";
 
+const themeSelect = byId("theme-select");
+try {
+  const savedTheme = localStorage.getItem("spectro-capture-theme");
+  if (Array.from(themeSelect.options).some((option) => option.value === savedTheme)) {
+    themeSelect.value = savedTheme;
+  }
+} catch {
+  // The theme still works when browser storage is unavailable.
+}
+document.documentElement.dataset.theme = themeSelect.value;
+themeSelect.addEventListener("change", () => {
+  document.documentElement.dataset.theme = themeSelect.value;
+  try {
+    localStorage.setItem("spectro-capture-theme", themeSelect.value);
+  } catch {
+    // Keep the selection for this page even when it cannot be saved.
+  }
+});
+
 function element(tag, value) {
   const node = document.createElement(tag);
   node.textContent = value;
