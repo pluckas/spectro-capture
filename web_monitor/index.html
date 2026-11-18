@@ -11,7 +11,7 @@
   <aside>
     <strong>Spectro Capture</strong>
     <nav aria-label="Observatory sections">
-      <a href="#batch" aria-current="page">Batch Runner</a>
+      <button type="button" data-open-panel="batch-panel" aria-controls="batch-panel">Batch Runner</button>
       <button type="button" data-open-panel="targets-panel" aria-controls="targets-panel">Targets</button>
       <button type="button" data-open-panel="recent-panel" aria-controls="recent-panel">Recent Activity</button>
       <button type="button" data-open-panel="fits-panel" aria-controls="fits-panel">FITS Viewer</button>
@@ -30,9 +30,9 @@
     </div>
     <form method="dialog" class="theme-actions"><button type="submit">Done</button></form>
   </dialog>
-  <main id="batch">
+  <main>
     <header>
-      <h1>Batch Runner</h1>
+      <h1>Observatory</h1>
       <p id="connection" role="status">Connecting to Spectro Capture…</p>
     </header>
     <dl id="hardware" aria-label="Observatory status">
@@ -87,39 +87,42 @@
       </div>
       <p id="dome-result" role="status"></p>
     </section>
-    <section class="activity" aria-labelledby="activity">
-      <p id="mode"></p>
-      <h2 id="activity">Waiting for status</h2>
-      <p id="exposure" hidden></p>
-      <progress id="progress" aria-label="Current exposure" hidden></progress>
-      <div id="batch-commands" class="batch-commands" hidden>
-        <button id="batch-run" type="button" disabled>Run</button>
-        <button id="batch-stop" type="button" disabled>Stop</button>
-        <span id="batch-target-count"></span>
-        <details id="batch-options">
-          <summary>Batch options</summary>
-          <div id="batch-schedule">
-            <label><input id="schedule-enabled" type="checkbox"> Enable Smart HA Scheduling</label>
-            <label>HA Min (hrs) <input id="schedule-ha-min" type="number" min="-6" max="6" step="any" required></label>
-            <label>HA Max (hrs) <input id="schedule-ha-max" type="number" min="-6" max="6" step="any" required></label>
-            <label>Start (observatory local time) <select id="schedule-start"></select></label>
-          </div>
-          <fieldset class="batch-option-group">
-            <legend>Calibration</legend>
-            <label><input id="schedule-pre-calib" type="checkbox"> Run Calibration at First Target</label>
-            <label><input id="schedule-shutdown-calib" type="checkbox"> Run Calibration After Batch</label>
-          </fieldset>
-          <fieldset class="batch-option-group">
-            <legend>Optional functions</legend>
-            <label><input id="schedule-park" type="checkbox"> Park Telescope After Batch</label>
-            <label><input id="schedule-close-dome" type="checkbox"> Close Dome After Batch</label>
-            <label><input id="schedule-warm-camera" type="checkbox"> Warm Camera to +5°C After Batch</label>
-          </fieldset>
-        </details>
-        <p id="batch-result" role="status"></p>
-      </div>
-    </section>
     <div id="workspace-panels">
+      <details id="batch-panel" class="workspace-panel" open>
+        <summary>Batch Runner</summary>
+        <div class="workspace-panel-body">
+          <p id="mode"></p>
+          <h2 id="activity">Waiting for status</h2>
+          <p id="exposure" hidden></p>
+          <progress id="progress" aria-label="Current exposure" hidden></progress>
+          <div id="batch-commands" class="batch-commands" hidden>
+            <button id="batch-run" type="button" disabled>Run</button>
+            <button id="batch-stop" type="button" disabled>Stop</button>
+            <span id="batch-target-count"></span>
+            <details id="batch-options">
+              <summary>Batch options</summary>
+              <div id="batch-schedule">
+                <label><input id="schedule-enabled" type="checkbox"> Enable Smart HA Scheduling</label>
+                <label>HA Min (hrs) <input id="schedule-ha-min" type="number" min="-6" max="6" step="any" required></label>
+                <label>HA Max (hrs) <input id="schedule-ha-max" type="number" min="-6" max="6" step="any" required></label>
+                <label>Start (observatory local time) <select id="schedule-start"></select></label>
+              </div>
+              <fieldset class="batch-option-group">
+                <legend>Calibration</legend>
+                <label><input id="schedule-pre-calib" type="checkbox"> Run Calibration at First Target</label>
+                <label><input id="schedule-shutdown-calib" type="checkbox"> Run Calibration After Batch</label>
+              </fieldset>
+              <fieldset class="batch-option-group">
+                <legend>Optional functions</legend>
+                <label><input id="schedule-park" type="checkbox"> Park Telescope After Batch</label>
+                <label><input id="schedule-close-dome" type="checkbox"> Close Dome After Batch</label>
+                <label><input id="schedule-warm-camera" type="checkbox"> Warm Camera to +5°C After Batch</label>
+              </fieldset>
+            </details>
+            <p id="batch-result" role="status"></p>
+          </div>
+        </div>
+      </details>
       <details id="targets-panel" class="workspace-panel" open>
         <summary id="targets">Targets</summary>
         <div class="workspace-panel-body">
