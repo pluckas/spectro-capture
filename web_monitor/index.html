@@ -46,6 +46,12 @@
         <button id="camera-cooler-on" type="button" disabled>Cooler On</button>
         <button id="camera-cooler-off" type="button" disabled>Cooler Off</button>
       </form>
+      <label>Binning
+        <select id="camera-binning" disabled>
+          <option value="" disabled>—</option>
+          <option value="1">1</option><option value="2">2</option><option value="3">3</option>
+        </select>
+      </label>
       <p id="camera-result" role="status"></p>
     </section>
     <section id="telescope-panel" class="hardware-panel" aria-label="Telescope controls" hidden>
@@ -61,6 +67,7 @@
           <button type="button" data-action="close">Close Shutter</button>
           <button type="button" data-action="park">Park</button>
           <button type="button" data-action="home">Home</button>
+          <button type="button" data-action="abort">Abort</button>
           <button id="dome-sync" type="button">Enable Sync</button>
         </div>
       </div>

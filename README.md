@@ -152,7 +152,7 @@ and output folder for frame-save results.
 #### Camera controls
 
 Click **Camera** in the browser status strip to connect or disconnect the
-camera or apply a temperature setpoint. Select the ASCOM driver in the
+camera, select binning (1, 2 or 3), or apply a temperature setpoint. Select the ASCOM driver in the
 Windows app's Setup tab. If the cooler is off, Apply saves the setpoint
 for the next time the cooler is turned on. Use **Cooler On** to start
 cooling at the saved setpoint, and **Cooler Off** to stop it. Camera commands are blocked
@@ -164,10 +164,11 @@ controls.
 Click **Telescope** in the status strip to connect or disconnect the
 telescope configured in Windows Setup. Click **Dome** for shutter,
 position and sync status, and for Connect, Disconnect, Open Shutter,
-Close Shutter, Park, Home and Sync. The browser asks for confirmation
-before requesting movement. Use the desktop Dome tab for configuration
-and its existing Abort control.
+Close Shutter, Park, Home, Abort and Sync. Shutter state also appears
+in the status strip. The browser asks for confirmation
+before requesting movement. Abort sends the same slew-stop command as
+the desktop Dome tab and leaves the sync setting as it was.
 
-Browser telescope and dome commands are blocked during acquisition,
-including Close Shutter. Disable dome sync and let it stop before
+Dome Abort remains available during acquisition. Other browser telescope
+and dome commands, including Close Shutter, are blocked. Disable dome sync and let it stop before
 parking, homing, or disconnecting either device.

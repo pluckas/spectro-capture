@@ -117,9 +117,9 @@ def report(context, method, *args, **kwargs):
 
 
 DEVICE_ACTIONS = {
-    "camera": ("connect", "disconnect", "setpoint", "cooler_on", "cooler_off"),
+    "camera": ("connect", "disconnect", "setpoint", "binning", "cooler_on", "cooler_off"),
     "telescope": ("connect", "disconnect"),
-    "dome": ("connect", "disconnect", "open", "close", "home", "park", "sync_on", "sync_off"),
+    "dome": ("connect", "disconnect", "open", "close", "home", "park", "abort", "sync_on", "sync_off"),
 }
 
 
@@ -131,12 +131,12 @@ class DeviceCommands:
         self.lock = Lock()
         self.pending = None
 
-    def submit(self, device, action, setpoint):
+    def submit(self, device, action, value):
         with self.lock:
             if self.pending is not None and not self.pending[0].done():
                 return 409, "A hardware command is already pending."
             result = Future()
-            self.pending = (result, device, action, setpoint)
+            self.pending = (result, device, action, value)
         try:
             return result.result(timeout=10)
         except TimeoutError:
@@ -148,10 +148,10 @@ class DeviceCommands:
         with self.lock:
             pending = self.pending
         if pending is not None:
-            result, device, action, setpoint = pending
+            result, device, action, value = pending
             if not result.done() and result.set_running_or_notify_cancel():
                 try:
-                    message = self.handlers[device](action, setpoint)
+                    message = self.handlers[device](action, value)
                 except Exception as error:
                     result.set_result((409, str(error)))
                 else:
@@ -193,17 +193,21 @@ class Handler(BaseHTTPRequestHandler):
             action = request["action"]
             if action not in DEVICE_ACTIONS[device]:
                 raise ValueError
-            setpoint = None
+            value = None
             if action == "setpoint":
                 value = request["setpoint"]
                 if type(value) not in (float, int) or not math.isfinite(value):
                     raise ValueError
-                setpoint = float(value)
+                value = float(value)
+            elif action == "binning":
+                value = request["binning"]
+                if type(value) is not int or value not in (1, 2, 3):
+                    raise ValueError
         except (KeyError, TypeError, ValueError, OverflowError, OSError):
             self.respond_json(400, "Invalid hardware command.")
             return
 
-        status, message = self.commands.submit(device, action, setpoint)
+        status, message = self.commands.submit(device, action, value)
         self.respond_json(status, message)
 
     def respond_json(self, status, message):

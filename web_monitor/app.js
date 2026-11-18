@@ -11,7 +11,9 @@ function element(tag, value) {
 
 function render(state) {
   const h = state.hardware;
+  const shutter = state.dome_status?.shutter;
   const status = [
+    ["Shutter", h.dome ? (shutter && shutter !== "---" ? shutter : "Unknown") : "—"],
     ["Dome sync", h.slewing ? "Dome moving" : h.dome ? onOff(h.sync) : "—"],
     ["Cooler", h.cooler && h.setpoint != null ? `On · set ${h.setpoint} °C` : onOff(h.cooler)],
     ["CCD", h.temperature == null ? "—" : `${h.temperature.toFixed(1)} °C`],
@@ -96,6 +98,7 @@ function renderDevices(state) {
     byId(`${device}-connection`).textContent = h[device] ? "Disconnect" : "Connect";
     if (!available) setPanelOpen(device, false);
   }
+  if (!commandPending) byId("camera-binning").value = h.binning ?? "";
   byId("camera-temperature").hidden = !h.camera;
   byId("camera-setpoint").placeholder = h.setpoint ?? h.saved_setpoint ?? "";
   domeOperations.hidden = !h.dome;
@@ -125,6 +128,7 @@ function updateDeviceButtons() {
   for (const id of ["camera-apply", "camera-cooler-on", "camera-cooler-off"]) {
     byId(id).disabled = !canCommand("camera") || !hardwareState.camera;
   }
+  byId("camera-binning").disabled = !canCommand("camera");
   const domeDisabled = !canCommand("dome") || !hardwareState.dome;
   for (const button of domeActions) {
     const positionCommand = ["home", "park"].includes(button.dataset.action);
@@ -152,10 +156,14 @@ byId("camera-temperature").addEventListener("submit", (event) => {
     sendDeviceCommand("camera", {action: "setpoint", setpoint: input.valueAsNumber});
   }
 });
+byId("camera-binning").addEventListener("change", (event) => {
+  sendDeviceCommand("camera", {action: "binning", binning: Number(event.target.value)});
+});
 for (const button of domeActions) {
   button.addEventListener("click", () => {
-    if (window.confirm(`${button.textContent}?`)) {
-      sendDeviceCommand("dome", {action: button.dataset.action});
+    const action = button.dataset.action;
+    if (action === "abort" || window.confirm(`${button.textContent}?`)) {
+      sendDeviceCommand("dome", {action});
     }
   });
 }

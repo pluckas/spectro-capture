@@ -94,7 +94,7 @@ class SetupTab(ttk.Frame):
         self.context.log(message)
         return message
 
-    def run_web_camera_command(self, action, setpoint):
+    def run_web_camera_command(self, action, value):
         if self.context.camera_work_active():
             raise RuntimeError("Camera controls are unavailable while an acquisition is active.")
         if action == "connect":
@@ -105,9 +105,12 @@ class SetupTab(ttk.Frame):
             return self.cooler_on(from_browser=True)
         if action == "cooler_off":
             return self.cooler_off(from_browser=True)
-        message = self.apply_camera_setpoint(setpoint)
+        if action == "binning":
+            self.set_binning(value)
+            return f"Binning set to {value}."
+        message = self.apply_camera_setpoint(value)
         self.setpoint_entry.delete(0, tk.END)
-        self.setpoint_entry.insert(0, f"{setpoint:g}")
+        self.setpoint_entry.insert(0, f"{value:g}")
         return message
 
     def build_gui(self):
@@ -431,8 +434,12 @@ class SetupTab(ttk.Frame):
             b = int(self.binning_var.get())
         except Exception:
             b = 2
-        self.context.current_binning = b
-        self.context.cfg["binning"] = b
+        self.set_binning(b)
+
+    def set_binning(self, binning):
+        self.context.current_binning = binning
+        self.context.cfg["binning"] = binning
+        self.binning_var.set(str(binning))
         self.context.save_config()
     
     # -----------------------

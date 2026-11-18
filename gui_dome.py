@@ -194,7 +194,7 @@ class DomeTab(ttk.Frame):
         return bool(thread and thread.is_alive())
 
     def run_web_dome_command(self, action, _setpoint):
-        if self.context.camera_work_active():
+        if action != "abort" and self.context.camera_work_active():
             raise RuntimeError("Dome controls are unavailable while an acquisition is active.")
         if action == "connect":
             return self.connect_dome(from_browser=True)
@@ -202,6 +202,9 @@ class DomeTab(ttk.Frame):
         dome = self.context.dome
         if not dome or not dome.Connected:
             raise RuntimeError("Dome is disconnected.")
+
+        if action == "abort":
+            return self._send_motion("abort")
 
         sync_running = self.sync_running()
         if action == "sync_off":
