@@ -214,9 +214,15 @@ if __name__ == "__main__":
         web_host = os.environ.get("SPECTRO_WEB_HOST")
         if web_host:
             try:
-                from web_monitor import Monitor, start
+                from web_monitor import CameraCommands, Monitor, start
                 monitor = Monitor()
-                web_server = start(monitor, web_host)
+                key = os.environ.get("SPECTRO_WEB_CONTROL_KEY")
+                setup = app.context.setup
+                commands = CameraCommands(key) if key and setup is not None else None
+                monitor.publish(camera_control=commands is not None)
+                web_server = start(monitor, web_host, commands=commands)
+                if commands is not None:
+                    commands.poll(root, setup)
                 app.context.web_monitor = monitor
                 app.context.log(f"Web monitor listening at http://{web_host}:8765/")
             except Exception as error:

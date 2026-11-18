@@ -138,7 +138,7 @@ python main.py
 
 Open <http://192.168.20.10:8765/> on a Mac or iPad on the observatory LAN.
 Use `127.0.0.1` as the host to test from the Observatory PC itself.
-The monitor is read-only. Use it on the observatory LAN and keep TCP port
+The monitor is read-only by default. Use it on the observatory LAN and keep TCP port
 8765 off the public internet. Starting normally with the variable unset
 runs the desktop application on its own. To unset it in the same Command
 Prompt, run `set SPECTRO_WEB_HOST=`.
@@ -147,3 +147,24 @@ The monitor shows the desktop's batch plan, the active run, camera exposure
 progress and the recent Status log. A **Processed** row means the batch
 worker reached the end of the science target step. Check the Status log
 and output folder for frame-save results.
+
+
+#### Optional camera controls
+
+To enable the Camera panel for this launch, also set a private control key
+using letters and numbers in the same Command Prompt before running
+`python main.py`:
+
+```bat
+set SPECTRO_WEB_CONTROL_KEY=replaceWithYourOwnLongKey
+```
+
+Click **Camera** in the browser status strip and enter that key. Select the
+ASCOM driver in the Windows app's Setup tab. The browser can connect or
+disconnect that camera and apply a temperature setpoint. If the cooler is
+off, Apply saves the setpoint for the next time the cooler is turned on.
+Camera commands are blocked during acquisition. Use these controls on your
+trusted observatory LAN since this connection uses HTTP.
+
+To return to read-only mode, close Spectro Capture, run
+`set SPECTRO_WEB_CONTROL_KEY=` in the same Command Prompt, and relaunch.

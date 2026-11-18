@@ -12,13 +12,16 @@ function element(tag, value) {
 function render(state) {
   const h = state.hardware;
   const status = [
-    ["Camera", connected(h.camera)], ["Telescope", connected(h.telescope)], ["Dome", connected(h.dome)],
+    ["Telescope", connected(h.telescope)], ["Dome", connected(h.dome)],
     ["Dome sync", h.slewing ? "Dome moving" : h.dome ? onOff(h.sync) : "—"],
     ["Cooler", h.cooler && h.setpoint != null ? `On · set ${h.setpoint} °C` : onOff(h.cooler)],
     ["CCD", h.temperature == null ? "—" : `${h.temperature.toFixed(1)} °C`],
     ["Binning", h.binning ?? "—"], ["Tungsten", onOff(h.tungsten)], ["Thorium", onOff(h.thorium)],
   ];
-  byId("hardware").replaceChildren(...status.map(([label, value]) => {
+  renderCamera(state);
+  const hardware = byId("hardware");
+  while (hardware.children.length > 1) hardware.lastElementChild.remove();
+  hardware.append(...status.map(([label, value]) => {
     const item = document.createElement("div");
     item.append(element("dt", label), element("dd", value));
     return item;
@@ -70,6 +73,82 @@ function render(state) {
   }));
 }
 
+let cameraConnected;
+let cameraPending = false;
+let cameraLive = false;
+let cameraControl = false;
+
+function renderCamera(state) {
+  const h = state.hardware;
+  cameraControl = state.camera_control === true;
+  cameraConnected = h.camera;
+  byId("camera-label").hidden = cameraControl;
+  byId("camera-toggle").hidden = !cameraControl;
+  byId("camera-state").textContent = connected(h.camera);
+  byId("camera-connection").textContent = h.camera ? "Disconnect" : "Connect";
+  byId("camera-temperature").hidden = !h.camera;
+  const setpoint = byId("camera-setpoint");
+  setpoint.placeholder = h.setpoint ?? "";
+  if (!cameraControl) {
+    byId("camera-panel").hidden = true;
+    byId("camera-toggle").setAttribute("aria-expanded", "false");
+  }
+}
+
+function updateCameraButtons() {
+  const disabled = !cameraControl || !cameraLive || cameraPending || !byId("camera-key").value ||
+    typeof cameraConnected !== "boolean";
+  byId("camera-connection").disabled = disabled;
+  byId("camera-apply").disabled = disabled || !cameraConnected;
+}
+
+byId("camera-toggle").addEventListener("click", () => {
+  const panel = byId("camera-panel");
+  panel.hidden = !panel.hidden;
+  byId("camera-toggle").setAttribute("aria-expanded", String(!panel.hidden));
+});
+
+byId("camera-key").addEventListener("input", updateCameraButtons);
+byId("camera-connection").addEventListener("click", () => {
+  sendCameraCommand({action: cameraConnected ? "disconnect" : "connect"});
+});
+byId("camera-temperature").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const input = byId("camera-setpoint");
+  if (!byId("camera-apply").disabled && input.reportValidity()) {
+    sendCameraCommand({action: "setpoint", setpoint: input.valueAsNumber});
+  }
+});
+
+async function sendCameraCommand(command) {
+  if (cameraPending || !cameraLive || !cameraControl) return;
+  const result = byId("camera-result");
+  result.textContent = "Waiting for Spectro Capture…";
+  cameraPending = true;
+  updateCameraButtons();
+  try {
+    const response = await fetch("/api/camera", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Spectro-Control-Key": byId("camera-key").value,
+      },
+      body: JSON.stringify(command),
+      signal: AbortSignal.timeout(15000),
+    });
+    result.textContent = (await response.json()).message;
+    if (response.ok && command.action === "setpoint") {
+      byId("camera-setpoint").value = "";
+    }
+  } catch {
+    result.textContent = "No command result received. Check camera status before trying again.";
+  } finally {
+    cameraPending = false;
+    cameraLive = false;
+    updateCameraButtons();
+  }
+}
+
 let lastUpdate;
 async function refresh() {
   try {
@@ -82,12 +161,15 @@ async function refresh() {
     render(state);
     lastUpdate = state.updated;
     const stale = !lastUpdate || Date.now() - Date.parse(lastUpdate) > 10000;
+    cameraLive = !stale;
     byId("connection").textContent = stale
       ? `Waiting for desktop refresh · ${clock(lastUpdate)}`
-      : `Read-only · Updated ${clock(lastUpdate)}`;
+      : `${cameraControl ? "Camera controls enabled" : "Read-only"} · Updated ${clock(lastUpdate)}`;
   } catch {
+    cameraLive = false;
     byId("connection").textContent = `Connection lost · Last update ${clock(lastUpdate)}`;
   } finally {
+    updateCameraButtons();
     setTimeout(refresh, 2000);
   }
 }

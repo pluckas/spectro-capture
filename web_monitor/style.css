@@ -45,3 +45,29 @@ time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .6
   aside { position: static; min-height: auto; padding: .75rem 1rem; border-right: 0; border-bottom: 1px solid var(--border); }
   nav { display: flex; overflow-x: auto; margin-top: .4rem; white-space: nowrap; }
 }
+
+#camera-toggle {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.hardware-panel {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: .65rem 1rem;
+  background: #191f2d;
+  border: 1px solid var(--border);
+  border-radius: .5rem;
+  padding: .85rem 1rem;
+}
+.hardware-panel label, .hardware-panel form { display: inline-flex; align-items: center; gap: .5rem; }
+.hardware-panel input, .hardware-panel button { font: inherit; padding: .3rem .55rem; }
+#camera-key { width: 9rem; }
+#camera-setpoint { width: 6rem; }
+#camera-result { flex-basis: 100%; }
+#camera-result:empty { display: none; }

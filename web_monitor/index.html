@@ -21,7 +21,24 @@
       <h1>Batch Runner</h1>
       <p id="connection" role="status">Connecting to Spectro Capture…</p>
     </header>
-    <dl id="hardware" aria-label="Observatory status"></dl>
+    <dl id="hardware" aria-label="Observatory status">
+      <div>
+        <dt>
+          <span id="camera-label">Camera</span>
+          <button id="camera-toggle" type="button" aria-controls="camera-panel" aria-expanded="false" hidden>Camera <span aria-hidden="true">⌄</span></button>
+        </dt>
+        <dd id="camera-state">—</dd>
+      </div>
+    </dl>
+    <section id="camera-panel" class="hardware-panel" aria-label="Camera controls" hidden>
+      <label>Control key <input id="camera-key" type="password" autocomplete="off"></label>
+      <button id="camera-connection" type="button" disabled>Connect</button>
+      <form id="camera-temperature" hidden>
+        <label>Setpoint (°C) <input id="camera-setpoint" type="number" step="any" required></label>
+        <button id="camera-apply" type="submit">Apply</button>
+      </form>
+      <p id="camera-result" role="status"></p>
+    </section>
     <section class="activity" aria-labelledby="activity">
       <p id="mode"></p>
       <h2 id="activity">Waiting for status</h2>

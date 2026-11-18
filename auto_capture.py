@@ -457,4 +457,4 @@ def run_auto_capture(context):
         except Exception as e:
             context.log(f"Auto Capture failed: {e}")
 
-    threading.Thread(target=worker, daemon=True).start()
+    context.start_camera_worker(threading.Thread(target=worker, daemon=True))

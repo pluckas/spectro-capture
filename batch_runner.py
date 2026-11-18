@@ -536,7 +536,7 @@ def run_batch(context, rows):
             _run_optional_shutdown_actions(context)
             _notify_gui_finished(context)
 
-    threading.Thread(target=batch_worker, daemon=True).start()
+    context.start_camera_worker(threading.Thread(target=batch_worker, daemon=True))
 
 
 # ---------------------------------------------------------------------------

@@ -150,6 +150,9 @@ class AppContext:
         self.stop_requested = threading.Event()   # master Stop flag (set by Stop button)
         self.adaptive_stop = threading.Event()    # used by adaptive exposure thread
         
+        self._camera_workers = []
+        self._camera_workers_lock = threading.Lock()
+
         # --- ROI auto-measured star-hit buffer (non-persistent) ---
         # Auto Capture / Batch Runner will append (x, y) samples when PHD2 finds a star.
         # This list is kept small (<= 30 samples) to avoid unbounded growth.
@@ -157,6 +160,16 @@ class AppContext:
         
         # --- Observing-night log date (fixed for this app session) ---
         self.log_date_str = utils.observing_night_date_str()
+
+    def start_camera_worker(self, worker):
+        with self._camera_workers_lock:
+            self._camera_workers = [thread for thread in self._camera_workers if thread.is_alive()]
+            worker.start()
+            self._camera_workers.append(worker)
+
+    def camera_work_active(self):
+        with self._camera_workers_lock:
+            return any(thread.is_alive() for thread in self._camera_workers)
 
     def set_log_callback(self, callback):
         """Register a function (usually from Status tab) to receive log messages."""

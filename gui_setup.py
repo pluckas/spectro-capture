@@ -26,6 +26,7 @@ Key features:
 - Shared AppContext integration for device state, logging, and persistence
 """
 
+import math
 import tkinter as tk
 from tkinter import ttk, messagebox
 
@@ -70,22 +71,42 @@ class SetupTab(ttk.Frame):
         self.after(1000, self.refresh_temp)
         
     def set_new_setpoint(self, event=None):
-            """Apply a new setpoint immediately if the cooler is already on."""
-            try:
-                if self.context.camera and getattr(self.context.camera, "Connected", False):
-                    sp = float(self.setpoint_entry.get())
-                    self.context.cfg["last_setpoint"] = sp
-                    self.context.save_config()
-        
-                    if getattr(self.context.camera, "CoolerOn", False):
-                        # Cooler already running — apply new target directly
-                        self.context.camera.SetCCDTemperature = sp
-                        self.context.log(f"Cooler already ON → new setpoint {sp} °C applied")
-                    else:
-                        # Cooler off — just remember it
-                        self.context.log(f"Cooler OFF → setpoint {sp} °C stored (will apply when turned ON)")
-            except Exception as e:
-                self.context.log(f"Setpoint update failed: {e}")    
+        try:
+            if self.context.camera and self.context.camera.Connected:
+                self.apply_camera_setpoint(float(self.setpoint_entry.get()))
+        except Exception as error:
+            self.context.log(f"Setpoint update failed: {error}")
+
+    def apply_camera_setpoint(self, setpoint):
+        if not math.isfinite(setpoint):
+            raise ValueError("Enter a finite temperature in °C.")
+        camera = self.context.camera
+        if not camera or not camera.Connected:
+            raise RuntimeError("Camera is disconnected.")
+
+        cooler_on = camera.CoolerOn
+        if cooler_on:
+            camera.SetCCDTemperature = setpoint
+        self.context.cfg["last_setpoint"] = setpoint
+        self.context.save_config()
+        message = (f"Cooler setpoint applied: {setpoint:g} °C." if cooler_on else
+                   f"Setpoint saved: {setpoint:g} °C. Cooler is off.")
+        self.context.log(message)
+        return message
+
+    def run_web_camera_command(self, action, setpoint):
+        tools = getattr(self.context, "tools", None)
+        tools_worker = getattr(tools, "thread", None)
+        if self.context.camera_work_active() or (tools_worker and tools_worker.is_alive()):
+            raise RuntimeError("Camera controls are unavailable while an acquisition is active.")
+        if action == "connect":
+            return self.connect_camera(from_browser=True)
+        if action == "disconnect":
+            return self.disconnect_camera(from_browser=True)
+        message = self.apply_camera_setpoint(setpoint)
+        self.setpoint_entry.delete(0, tk.END)
+        self.setpoint_entry.insert(0, f"{setpoint:g}")
+        return message
 
     def build_gui(self):
         # --- Camera ---
@@ -230,23 +251,31 @@ class SetupTab(ttk.Frame):
         except Exception as e:
             self.context.log(f"Camera chooser failed: {e}")
 
-    def connect_camera(self):
-        if not self._camera_progid:
-            messagebox.showerror("Error", "No camera selected"); return
+    def connect_camera(self, *, from_browser=False):
         try:
-            self.context.camera = win32com.client.Dispatch(self._camera_progid)
-            self.context.camera.Connected = True
+            if not self._camera_progid:
+                raise RuntimeError("Select a camera driver in Setup on the Observatory PC.")
+            if self.context.camera and self.context.camera.Connected:
+                return "Camera already connected."
+            camera = win32com.client.Dispatch(self._camera_progid)
+            camera.Connected = True
+            if not camera.Connected:
+                raise RuntimeError("The camera driver did not report a connection.")
+            self.context.camera = camera
             self.cam_status.config(text="Camera connected")
             self.connect_cam_btn.config(state="disabled")
             self.disconnect_cam_btn.config(state="normal")
             self.cool_on_btn.config(state="normal")
             self.cool_off_btn.config(state="normal")
             self.context.log("ASCOM camera connected.")
+            return "Camera connected."
         except Exception as e:
             self.context.log(f"Camera connect failed: {e}")
+            if from_browser:
+                raise
             messagebox.showerror("Camera", f"Connect failed:\n{e}")
 
-    def disconnect_camera(self):
+    def disconnect_camera(self, *, from_browser=False):
         try:
             if self.context.camera:
                 self.context.camera.Connected = False
@@ -258,8 +287,11 @@ class SetupTab(ttk.Frame):
             self.cool_off_btn.config(state="disabled")
             self.temp_lbl.config(text="T: -- °C | Pwr: -- %")
             self.context.log("ASCOM camera disconnected.")
+            return "Camera disconnected."
         except Exception as e:
             self.context.log(f"Camera disconnect failed: {e}")
+            if from_browser:
+                raise
 
     # Cooling
     def cooler_on(self):

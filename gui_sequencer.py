@@ -334,7 +334,7 @@ class SequencerTab(ttk.Frame, SafeLogMixin):
                     pass
                 self.after(0, self._on_run_finished)
         
-        threading.Thread(target=worker, daemon=True).start()
+        self.context.start_camera_worker(threading.Thread(target=worker, daemon=True))
 
 
     def run_target(self):
@@ -413,7 +413,7 @@ class SequencerTab(ttk.Frame, SafeLogMixin):
             finally:
                 self.after(0, self._on_run_finished)
     
-        threading.Thread(target=worker, daemon=True).start()
+        self.context.start_camera_worker(threading.Thread(target=worker, daemon=True))
 
     def add_exposure(self):
         """
@@ -468,7 +468,7 @@ class SequencerTab(ttk.Frame, SafeLogMixin):
             finally:
                 self.after(0, self._on_run_finished)
     
-        threading.Thread(target=worker, daemon=True).start()
+        self.context.start_camera_worker(threading.Thread(target=worker, daemon=True))
 
     def take_single(self):
         if not self._guard_connected():
@@ -531,7 +531,7 @@ class SequencerTab(ttk.Frame, SafeLogMixin):
             finally:
                 self.after(0, self._on_run_finished)
     
-        threading.Thread(target=worker, daemon=True).start()
+        self.context.start_camera_worker(threading.Thread(target=worker, daemon=True))
 
 
     def update_mode(self):

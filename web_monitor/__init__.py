@@ -1,10 +1,13 @@
-"""Read-only browser monitor for the running Spectro Capture session."""
+"""Browser monitor for the running Spectro Capture session."""
 
 from collections import deque
+from concurrent.futures import Future, TimeoutError
 from datetime import datetime, timezone
 from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from hmac import compare_digest
 import json
+import math
 from pathlib import Path
 from threading import Lock, Thread
 
@@ -114,10 +117,47 @@ def report(context, method, *args, **kwargs):
             print(f"Web monitor update failed: {error}")
 
 
+class CameraCommands:
+    """Pass one browser request at a time to the desktop event loop."""
+
+    def __init__(self, key):
+        self.key = key.encode("utf-8")
+        self.lock = Lock()
+        self.pending = None
+
+    def submit(self, action, setpoint):
+        with self.lock:
+            if self.pending is not None and not self.pending[0].done():
+                return 409, "A camera command is already pending."
+            result = Future()
+            self.pending = (result, action, setpoint)
+        try:
+            return result.result(timeout=10)
+        except TimeoutError:
+            if result.cancel():
+                return 503, "Desktop did not respond. Command was cancelled."
+            return 504, "The result is pending. Check the camera status before trying again."
+
+    def poll(self, root, setup):
+        with self.lock:
+            pending = self.pending
+        if pending is not None:
+            result, action, setpoint = pending
+            if not result.done() and result.set_running_or_notify_cancel():
+                try:
+                    message = setup.run_web_camera_command(action, setpoint)
+                except Exception as error:
+                    result.set_result((409, str(error)))
+                else:
+                    result.set_result((200, message))
+        root.after(100, self.poll, root, setup)
+
+
 class Handler(BaseHTTPRequestHandler):
-    def __init__(self, *args, monitor, assets, **kwargs):
+    def __init__(self, *args, monitor, assets, commands, **kwargs):
         self.monitor = monitor
         self.assets = assets
+        self.commands = commands
         super().__init__(*args, **kwargs)
 
     def do_GET(self):
@@ -128,7 +168,46 @@ class Handler(BaseHTTPRequestHandler):
         else:
             self.send_error(404)
             return
-        self.send_response(200)
+        self.respond(200, content_type, body)
+
+    def do_POST(self):
+        if self.path != "/api/camera" or self.commands is None:
+            self.send_error(404)
+            return
+        key = self.headers.get("X-Spectro-Control-Key", "").encode("utf-8")
+        if not compare_digest(key, self.commands.key):
+            self.respond_json(403, "Camera control key is incorrect.")
+            return
+        if self.headers.get_content_type() != "application/json":
+            self.respond_json(415, "Expected JSON.")
+            return
+        try:
+            size = int(self.headers.get("Content-Length", "0"))
+            if not 0 < size <= 256:
+                raise ValueError
+            self.connection.settimeout(3)
+            request = json.loads(self.rfile.read(size))
+            action = request["action"]
+            if action not in ("connect", "disconnect", "setpoint"):
+                raise ValueError
+            setpoint = None
+            if action == "setpoint":
+                value = request["setpoint"]
+                if type(value) not in (float, int) or not math.isfinite(value):
+                    raise ValueError
+                setpoint = float(value)
+        except (KeyError, TypeError, ValueError, OverflowError, OSError):
+            self.respond_json(400, "Invalid camera command.")
+            return
+
+        status, message = self.commands.submit(action, setpoint)
+        self.respond_json(status, message)
+
+    def respond_json(self, status, message):
+        self.respond(status, "application/json", json.dumps({"message": message}).encode())
+
+    def respond(self, status, content_type, body):
+        self.send_response(status)
         self.send_header("Content-Type", content_type)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
@@ -139,7 +218,7 @@ class Handler(BaseHTTPRequestHandler):
         pass
 
 
-def start(monitor, host, port=8765):
+def start(monitor, host, port=8765, *, commands=None):
     directory = Path(__file__).parent
     assets = {
         route: (mime, (directory / filename).read_bytes())
@@ -149,7 +228,7 @@ def start(monitor, host, port=8765):
             ("/app.js", "text/javascript; charset=utf-8", "app.js"),
         ]
     }
-    handler = partial(Handler, monitor=monitor, assets=assets)
+    handler = partial(Handler, monitor=monitor, assets=assets, commands=commands)
     server = ThreadingHTTPServer((host, port), handler)
     Thread(target=server.serve_forever, daemon=True).start()
     return server

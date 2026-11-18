@@ -559,11 +559,11 @@ class BatchTab(ttk.Frame):
         # ===== END FIX =====
 
         
-        threading.Thread(
+        self.context.start_camera_worker(threading.Thread(
             target=run_batch,
             args=(self.context, rows),
             daemon=True
-        ).start()
+        ))
 
     def stop_batch(self):
         if not self.batch_running:
