@@ -210,7 +210,7 @@ class Handler(BaseHTTPRequestHandler):
                 value = request["edit"]
                 if not isinstance(value, dict):
                     raise ValueError
-            elif action == "clear_targets":
+            elif action in ("run", "clear_targets"):
                 value = request["revision"]
                 if not isinstance(value, str):
                     raise ValueError

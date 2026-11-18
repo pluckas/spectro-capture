@@ -37,6 +37,7 @@ function render(state) {
   if (batchSchedule && !commandPending) renderSchedule();
   targetCount = state.plan.length;
   targetListRevision = state.target_list_revision;
+  batchRunRevision = state.batch_run_revision;
   byId("batch-csv-controls").hidden = !availableDevices.includes("batch");
   enabledTargets = state.plan.filter((row) => row.enabled).length;
   const exposure = batchStopping ? null : run?.exposure;
@@ -342,6 +343,7 @@ let acquisitionBusy = false;
 let enabledTargets = 0;
 let targetCount = 0;
 let targetListRevision;
+let batchRunRevision;
 let batchSchedule;
 const batchOptionCheckboxes = [
   ["schedule-enabled", "enabled", false],
@@ -425,7 +427,7 @@ function updateDeviceButtons() {
       control.disabled = control.hasAttribute("data-cancel") ? commandPending : !canEditTargets;
     }
   }
-  byId("batch-run").disabled = !canEditTargets || !!activeTargetEditor || enabledTargets === 0;
+  byId("batch-run").disabled = !canEditTargets || !!activeTargetEditor || !batchRunRevision || enabledTargets === 0;
   byId("batch-load-csv").disabled = !canCommand("batch") || batchRunning || acquisitionBusy;
   byId("batch-download-csv").disabled = !canCommand("batch") || targetCount === 0;
   byId("batch-stop").disabled = !canCommand("batch") || !batchRunning || batchStopping;
@@ -488,8 +490,9 @@ byId("dome-sync").addEventListener("click", () => {
 });
 
 byId("batch-run").addEventListener("click", () => {
+  const revision = batchRunRevision;
   if (window.confirm(`Run batch with ${byId("batch-target-count").textContent} in ${byId("mode").textContent.toLowerCase()} mode?`)) {
-    sendDeviceCommand("batch", {action: "run"});
+    sendDeviceCommand("batch", {action: "run", revision});
   }
 });
 byId("batch-stop").addEventListener("click", () => sendDeviceCommand("batch", {action: "stop"}));

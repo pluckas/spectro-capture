@@ -597,6 +597,9 @@ class BatchTab(ttk.Frame):
     # ----------------------------------------------------------------------
     def run_web_batch_command(self, action, value):
         if action == "run":
+            list_revision = self._target_list_revision(self._batch_rows())
+            if value != self._batch_run_revision(list_revision, self._web_schedule()):
+                raise ValueError("The targets or batch options changed. Review the updated batch and click Run again.")
             return self.run_batch(from_browser=True)
         if action == "schedule":
             return self._apply_web_schedule(value)
@@ -652,6 +655,9 @@ class BatchTab(ttk.Frame):
             report(self.context, "publish", run=None)
             self._publish_batch_status()
         return ""
+
+    def _batch_run_revision(self, list_revision, schedule):
+        return self._target_revision((list_revision, tuple(sorted(schedule.items()))))
 
     def _require_target_list_idle(self):
         if self.batch_running or self.context.camera_work_active():
@@ -866,15 +872,18 @@ class BatchTab(ttk.Frame):
             return
         if rows is None:
             rows = self._batch_rows()
+        schedule = self._web_schedule()
+        list_revision = self._target_list_revision(rows)
         report(self.context, "publish", plan=describe_rows(rows),
-               target_list_revision=self._target_list_revision(rows),
+               target_list_revision=list_revision,
+               batch_run_revision=self._batch_run_revision(list_revision, schedule),
                target_edits=[{"id": item, "revision": self._target_revision(row), "ra": row[1], "dec": row[2]}
                              for item, row in zip(self.table.get_children(), rows)],
                plan_mode="Hour angle" if self.smart_var.get() else "List order",
                batch_running=self.batch_running,
                batch_stopping=self.batch_running and self.context.stop_requested.is_set(),
                acquisition_busy=self.context.camera_work_active(),
-               batch_schedule=self._web_schedule())
+               batch_schedule=schedule)
 
     # ----------------------------------------------------------------------
     # Status indicator updater
