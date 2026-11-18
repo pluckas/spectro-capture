@@ -154,6 +154,7 @@ and output folder for frame-save results.
 Click **Camera** in the browser status strip to connect or disconnect the
 camera or apply a temperature setpoint. Select the ASCOM driver in the
 Windows app's Setup tab. If the cooler is off, Apply saves the setpoint
-for the next time the cooler is turned on. Camera commands are blocked
+for the next time the cooler is turned on. Use **Cooler On** to start
+cooling at the saved setpoint, and **Cooler Off** to stop it. Camera commands are blocked
 during acquisition. Anyone who can reach the monitor can use its camera
 controls.

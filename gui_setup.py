@@ -103,6 +103,10 @@ class SetupTab(ttk.Frame):
             return self.connect_camera(from_browser=True)
         if action == "disconnect":
             return self.disconnect_camera(from_browser=True)
+        if action == "cooler_on":
+            return self.cooler_on(from_browser=True)
+        if action == "cooler_off":
+            return self.cooler_off(from_browser=True)
         message = self.apply_camera_setpoint(setpoint)
         self.setpoint_entry.delete(0, tk.END)
         self.setpoint_entry.insert(0, f"{setpoint:g}")
@@ -294,25 +298,46 @@ class SetupTab(ttk.Frame):
                 raise
 
     # Cooling
-    def cooler_on(self):
+    def cooler_on(self, *, from_browser=False):
         try:
-            if self.context.camera and getattr(self.context.camera, "CanSetCCDTemperature", False):
-                sp = float(self.setpoint_entry.get())
-                self.context.camera.CoolerOn = True
-                self.context.camera.SetCCDTemperature = sp
-                self.context.cfg["last_setpoint"] = sp
-                self.context.save_config()
-                self.context.log(f"Cooler ON → setpoint {sp} °C")
+            camera = self.context.camera
+            if not camera or (from_browser and not camera.Connected):
+                if from_browser:
+                    raise RuntimeError("Camera is disconnected.")
+                return
+            if not getattr(camera, "CanSetCCDTemperature", False):
+                if from_browser:
+                    raise RuntimeError("Camera does not support setting a cooler temperature.")
+                return
+            sp = float(self.context.cfg["last_setpoint"] if from_browser else self.setpoint_entry.get())
+            if not math.isfinite(sp):
+                raise ValueError("Enter a finite temperature in °C.")
+            camera.CoolerOn = True
+            camera.SetCCDTemperature = sp
+            self.context.cfg["last_setpoint"] = sp
+            self.context.save_config()
+            message = f"Cooler ON → setpoint {sp:g} °C"
+            self.context.log(message)
+            return message
         except Exception as e:
             self.context.log(f"Cooling error: {e}")
+            if from_browser:
+                raise
 
-    def cooler_off(self):
+    def cooler_off(self, *, from_browser=False):
         try:
-            if self.context.camera:
-                self.context.camera.CoolerOn = False
-                self.context.log("Cooler OFF")
+            camera = self.context.camera
+            if not camera or (from_browser and not camera.Connected):
+                if from_browser:
+                    raise RuntimeError("Camera is disconnected.")
+                return
+            camera.CoolerOn = False
+            self.context.log("Cooler OFF")
+            return "Cooler OFF"
         except Exception as e:
             self.context.log(f"Cooling error: {e}")
+            if from_browser:
+                raise
 
     def refresh_temp(self):
         try:

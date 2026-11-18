@@ -211,12 +211,14 @@ def update_status_header(context, widgets, sync_blink):
         # =============================================
 
         if getattr(context, "web_monitor", None) is not None:
+            saved_setpoint = context.cfg.get("last_setpoint")
             report(context, "publish", updated=utc_now(), hardware={
                 "camera": cam_connected, "telescope": tel_connected, "dome": dome_connected,
                 "sync": sync, "slewing": bool(dome_slewing),
                 "temperature": float(t_str) if t_str != "--" and t_str not in ("nan", "inf", "-inf") else None,
                 "cooler": cooler_on,
                 "setpoint": target if isinstance(target, (float, int)) and abs(target) < float("inf") else None,
+                "saved_setpoint": saved_setpoint if isinstance(saved_setpoint, (float, int)) and abs(saved_setpoint) < float("inf") else None,
                 "binning": safe_get(context, "current_binning"),
                 "tungsten": bool(safe_get(context, "tung_on", False)),
                 "thorium": bool(safe_get(context, "thor_on", False)),

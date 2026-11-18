@@ -81,6 +81,9 @@ let cameraControl = false;
 function renderCamera(state) {
   const h = state.hardware;
   cameraControl = state.camera_control === true;
+  if (h.camera && !cameraConnected) {
+    byId("camera-setpoint").value = h.setpoint ?? h.saved_setpoint ?? "";
+  }
   cameraConnected = h.camera;
   byId("camera-label").hidden = cameraControl;
   byId("camera-toggle").hidden = !cameraControl;
@@ -88,7 +91,7 @@ function renderCamera(state) {
   byId("camera-connection").textContent = h.camera ? "Disconnect" : "Connect";
   byId("camera-temperature").hidden = !h.camera;
   const setpoint = byId("camera-setpoint");
-  setpoint.placeholder = h.setpoint ?? "";
+  setpoint.placeholder = h.setpoint ?? h.saved_setpoint ?? "";
   if (!cameraControl) {
     byId("camera-panel").hidden = true;
     byId("camera-toggle").setAttribute("aria-expanded", "false");
@@ -99,7 +102,9 @@ function updateCameraButtons() {
   const disabled = !cameraControl || !cameraLive || cameraPending ||
     typeof cameraConnected !== "boolean";
   byId("camera-connection").disabled = disabled;
-  byId("camera-apply").disabled = disabled || !cameraConnected;
+  for (const id of ["camera-apply", "camera-cooler-on", "camera-cooler-off"]) {
+    byId(id).disabled = disabled || !cameraConnected;
+  }
 }
 
 byId("camera-toggle").addEventListener("click", () => {
@@ -111,6 +116,8 @@ byId("camera-toggle").addEventListener("click", () => {
 byId("camera-connection").addEventListener("click", () => {
   sendCameraCommand({action: cameraConnected ? "disconnect" : "connect"});
 });
+byId("camera-cooler-on").addEventListener("click", () => sendCameraCommand({action: "cooler_on"}));
+byId("camera-cooler-off").addEventListener("click", () => sendCameraCommand({action: "cooler_off"}));
 byId("camera-temperature").addEventListener("submit", (event) => {
   event.preventDefault();
   const input = byId("camera-setpoint");
@@ -133,9 +140,6 @@ async function sendCameraCommand(command) {
       signal: AbortSignal.timeout(15000),
     });
     result.textContent = (await response.json()).message;
-    if (response.ok && command.action === "setpoint") {
-      byId("camera-setpoint").value = "";
-    }
   } catch {
     result.textContent = "No command result received. Check camera status before trying again.";
   } finally {

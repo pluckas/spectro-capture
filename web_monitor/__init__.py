@@ -182,7 +182,7 @@ class Handler(BaseHTTPRequestHandler):
             self.connection.settimeout(3)
             request = json.loads(self.rfile.read(size))
             action = request["action"]
-            if action not in ("connect", "disconnect", "setpoint"):
+            if action not in ("connect", "disconnect", "setpoint", "cooler_on", "cooler_off"):
                 raise ValueError
             setpoint = None
             if action == "setpoint":
