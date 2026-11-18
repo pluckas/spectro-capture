@@ -108,6 +108,7 @@
     <section aria-labelledby="targets">
       <h2 id="targets">Targets</h2>
       <div id="batch-csv-controls" class="batch-commands" hidden>
+        <button id="batch-add-target" type="button" disabled>Add Target</button>
         <button id="batch-load-csv" type="button" disabled>Load CSV</button>
         <input id="batch-csv-file" type="file" accept=".csv,text/csv" hidden>
         <button id="batch-download-csv" type="button" disabled>Download CSV</button>
@@ -120,6 +121,20 @@
           <tbody id="rows"></tbody>
         </table>
       </div>
+      <template id="target-identity-template">
+        <tr class="target-identity-row">
+          <td colspan="8">
+            <form class="target-identity-form">
+              <label>Name <input name="name" maxlength="120" required></label>
+              <label>RA <input name="ra" maxlength="40" placeholder="hh:mm:ss"></label>
+              <label>Dec <input name="dec" maxlength="40" placeholder="±dd:mm:ss"></label>
+              <button type="submit">Save Target</button>
+              <button type="button" data-cancel>Cancel</button>
+              <p role="status" id="target-identity-result"></p>
+            </form>
+          </td>
+        </tr>
+      </template>
     </section>
     <section aria-labelledby="recent">
       <h2 id="recent">Recent activity</h2>

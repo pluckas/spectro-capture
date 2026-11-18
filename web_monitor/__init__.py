@@ -117,7 +117,7 @@ def report(context, method, *args, **kwargs):
 
 
 DEVICE_ACTIONS = {
-    "batch": ("run", "stop", "schedule", "load_csv", "download_csv", "edit_target"),
+    "batch": ("run", "stop", "schedule", "load_csv", "download_csv", "edit_target", "save_target_identity"),
     "camera": ("connect", "disconnect", "setpoint", "binning", "cooler_on", "cooler_off"),
     "telescope": ("connect", "disconnect"),
     "dome": ("connect", "disconnect", "open", "close", "home", "park", "abort", "sync_on", "sync_off"),
@@ -206,7 +206,7 @@ class Handler(BaseHTTPRequestHandler):
                 value = request["csv"]
                 if not isinstance(value, str) or "\x00" in value:
                     raise ValueError
-            elif action == "edit_target":
+            elif action in ("edit_target", "save_target_identity"):
                 value = request["edit"]
                 if not isinstance(value, dict):
                     raise ValueError

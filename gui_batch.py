@@ -505,14 +505,7 @@ class BatchTab(ttk.Frame):
         return rows
 
     def _validate_csv_target(self, row):
-        from utils import parse_ra_dec_strings
-
-        if not row[0].strip():
-            raise ValueError("Target name is required.")
-        try:
-            parse_ra_dec_strings(row[1], row[2])
-        except ValueError as error:
-            raise ValueError(f"Invalid RA or Dec: {error}") from error
+        self._validate_target_identity(*row[:3])
         if row[7]:
             # Older desktop exports say Local in the header but store UT.
             try:
@@ -534,6 +527,17 @@ class BatchTab(ttk.Frame):
                     raise ValueError
             except ValueError:
                 raise ValueError(f"{label} needs a positive exposure and a positive whole frame count.") from None
+
+    @staticmethod
+    def _validate_target_identity(name, ra, dec):
+        from utils import parse_ra_dec_strings
+
+        if not name.strip():
+            raise ValueError("Target name is required.")
+        try:
+            parse_ra_dec_strings(ra, dec)
+        except ValueError as error:
+            raise ValueError(f"Invalid RA or Dec: {error}") from error
 
     def _replace_batch_rows(self, rows):
         self.table.delete(*self.table.get_children())
@@ -585,6 +589,8 @@ class BatchTab(ttk.Frame):
             return self._load_web_batch_csv(value)
         if action == "download_csv":
             return self._download_web_batch_csv()
+        if action == "save_target_identity":
+            return self._save_web_target_identity(value)
         if action == "edit_target":
             return self._edit_web_target(value)
         return self.stop_batch(from_browser=True)
@@ -593,15 +599,43 @@ class BatchTab(ttk.Frame):
     def _target_revision(row):
         return sha256(repr(tuple(row)).encode("utf-8")).hexdigest()
 
-    def _edit_web_target(self, edit):
+    def _require_target_list_idle(self):
         if self.batch_running or self.context.camera_work_active():
             raise RuntimeError("Wait for acquisition to finish before editing targets.")
-        item, revision, field, value = (edit.get(key) for key in ("id", "revision", "field", "value"))
+
+    def _check_target_revision(self, edit):
+        item = edit.get("id")
         if not isinstance(item, str) or not item or not self.table.exists(item):
             raise ValueError("This target is no longer in the list.")
         row = self._full_row_values(item)
-        if revision != self._target_revision(row):
-            raise ValueError("This target changed in the desktop or another tab. Try again.")
+        if edit.get("revision") != self._target_revision(row):
+            raise ValueError("This target changed in the desktop or another tab. Reopen it to edit.")
+        return item, row
+
+    def _save_web_target_identity(self, edit):
+        self._require_target_list_idle()
+        identity = [edit.get(field) for field in ("name", "ra", "dec")]
+        if not all(isinstance(value, str) and "\x00" not in value for value in identity):
+            raise ValueError("Enter a target name and optional RA and Dec.")
+        name, ra, dec = (value.strip() for value in identity)
+        self._validate_target_identity(name, ra, dec)
+
+        if "id" in edit:
+            item, row = self._check_target_revision(edit)
+            if (name, ra, dec) == row[:3]:
+                return ""
+            self.table.item(item, values=(name, *row[3:]))
+        else:
+            item = self.table.insert("", "end", values=(name, "600", "3", "✓", "✓", "", "", "", ""))
+        self._row_coords[item] = (ra, dec)
+        report(self.context, "publish", run=None)
+        self._publish_batch_status()
+        return ""
+
+    def _edit_web_target(self, edit):
+        self._require_target_list_idle()
+        item, row = self._check_target_revision(edit)
+        field, value = edit.get("field"), edit.get("value")
         columns = {"seconds": 3, "frames": 4, "calibration": 5, "enabled": 6, "start_ut": 7}
         if not isinstance(field, str) or field not in columns:
             raise ValueError("Invalid target field.")
@@ -756,7 +790,7 @@ class BatchTab(ttk.Frame):
         if rows is None:
             rows = self._batch_rows()
         report(self.context, "publish", plan=describe_rows(rows),
-               target_edits=[{"id": item, "revision": self._target_revision(row)}
+               target_edits=[{"id": item, "revision": self._target_revision(row), "ra": row[1], "dec": row[2]}
                              for item, row in zip(self.table.get_children(), rows)],
                plan_mode="Hour angle" if self.smart_var.get() else "List order",
                batch_running=self.batch_running,

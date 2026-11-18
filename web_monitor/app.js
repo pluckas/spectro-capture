@@ -70,6 +70,7 @@ function render(state) {
 }
 
 let targetTableKey;
+let activeTargetEditor;
 
 function renderTargets(rows, run, edits) {
   const editable = availableDevices.includes("batch") && !batchRunning && !run?.running;
@@ -84,7 +85,17 @@ function renderTargets(rows, run, edits) {
     const reference = row.reference && row.reference_seconds && row.reference_frames
       ? `${row.reference} · ${row.reference_frames} × ${row.reference_seconds} s` : row.reference;
     const edit = editable ? edits[index] : null;
-    tr.append(element("td", row.target),
+    const name = element("td", row.target);
+    if (edit) {
+      tr.dataset.targetId = edit.id;
+      const trigger = element("button", row.target);
+      trigger.type = "button";
+      trigger.className = "target-control";
+      trigger.setAttribute("aria-label", `Edit name and coordinates for ${row.target}`);
+      trigger.addEventListener("click", () => openTargetEditor(edit, row.target, tr));
+      name.replaceChildren(trigger);
+    }
+    tr.append(name,
       targetField(row, edit, "start_ut", "Start (UT)", row.start_ut || "—"),
       targetField(row, edit, "seconds", "Exposure (s)", `${row.seconds} s`),
       targetField(row, edit, "frames", "Frames", row.frames),
@@ -101,6 +112,61 @@ function renderTargets(rows, run, edits) {
     row.append(cell);
     table.append(row);
   }
+  if (activeTargetEditor) {
+    const id = activeTargetEditor.edit.id;
+    const target = [...table.children].find((row) => row.dataset.targetId === id);
+    if (!editable || (id && !target)) {
+      closeTargetEditor();
+    } else if (target) {
+      target.after(activeTargetEditor.row);
+    } else {
+      table.append(activeTargetEditor.row);
+    }
+  }
+}
+
+function closeTargetEditor() {
+  if (!activeTargetEditor) return;
+  activeTargetEditor.row.remove();
+  activeTargetEditor = null;
+}
+
+function openTargetEditor(edit = {}, name = "", targetRow = null) {
+  closeTargetEditor();
+  const row = byId("target-identity-template").content.firstElementChild.cloneNode(true);
+  const form = row.querySelector("form");
+  const nameInput = form.elements.namedItem("name");
+  const raInput = form.elements.namedItem("ra");
+  const decInput = form.elements.namedItem("dec");
+  nameInput.value = name;
+  raInput.value = edit.ra ?? "";
+  decInput.value = edit.dec ?? "";
+  activeTargetEditor = {row, edit};
+  if (targetRow) targetRow.after(row);
+  else byId("rows").append(row);
+  const cancel = () => {
+    closeTargetEditor();
+    updateDeviceButtons();
+    (targetRow?.querySelector("button") ?? byId("batch-add-target")).focus();
+  };
+  form.querySelector("[data-cancel]").addEventListener("click", cancel);
+  form.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !commandPending) {
+      event.preventDefault();
+      cancel();
+    }
+  });
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (form.querySelector('[type="submit"]').disabled) return;
+    const identity = {name: nameInput.value, ra: raInput.value, dec: decInput.value};
+    if (edit.id) Object.assign(identity, {id: edit.id, revision: edit.revision});
+    const saved = await sendDeviceCommand("batch", {action: "save_target_identity", edit: identity},
+      "target-identity-result");
+    if (saved && activeTargetEditor?.row === row) cancel();
+  });
+  updateDeviceButtons();
+  nameInput.focus();
 }
 
 function targetField(row, edit, field, label, display) {
@@ -230,7 +296,14 @@ function updateDeviceButtons() {
   for (const control of byId("rows").querySelectorAll(".target-control")) {
     control.disabled = !canCommand("batch") || batchRunning || acquisitionBusy;
   }
-  byId("batch-run").disabled = !canCommand("batch") || batchRunning || acquisitionBusy || enabledTargets === 0;
+  const canEditTargets = canCommand("batch") && !batchRunning && !acquisitionBusy;
+  byId("batch-add-target").disabled = !canEditTargets || !!activeTargetEditor;
+  if (activeTargetEditor) {
+    for (const control of activeTargetEditor.row.querySelectorAll("input, button")) {
+      control.disabled = control.hasAttribute("data-cancel") ? commandPending : !canEditTargets;
+    }
+  }
+  byId("batch-run").disabled = !canEditTargets || !!activeTargetEditor || enabledTargets === 0;
   byId("batch-load-csv").disabled = !canCommand("batch") || batchRunning || acquisitionBusy;
   byId("batch-download-csv").disabled = !canCommand("batch") || targetCount === 0;
   byId("batch-stop").disabled = !canCommand("batch") || !batchRunning || batchStopping;
@@ -317,6 +390,7 @@ for (const [id, field, property] of [
   }
 }
 
+byId("batch-add-target").addEventListener("click", () => openTargetEditor());
 const csvPicker = byId("batch-csv-file");
 byId("batch-load-csv").addEventListener("click", () => csvPicker.click());
 csvPicker.addEventListener("change", async () => {
@@ -370,6 +444,7 @@ async function sendDeviceCommand(device, command, resultId = `${device}-result`)
     } else {
       result.textContent = (await response.json()).message;
     }
+    return response.ok;
   } catch {
     result.textContent = "No command result received. Check status before trying again.";
   } finally {

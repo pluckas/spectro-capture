@@ -199,3 +199,8 @@ exports whose column header reads `Start Time (Local)`.
 When the batch is idle, click an exposure, frame count, or UT start time
 in the Targets table to edit it. Enter saves the value and Escape cancels.
 Use the Calibration and Enabled checkboxes to update those options.
+
+
+Click a target name to edit its name and coordinates together, or use
+**Add Target** to add a row with the desktop defaults. Enter both RA and
+Dec or leave both blank to resolve the target by name at run time.
