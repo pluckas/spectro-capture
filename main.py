@@ -228,6 +228,7 @@ if __name__ == "__main__":
                 if batch_tab is not None:
                     handlers["batch"] = batch_tab.run_web_batch_command
                 handlers["calibration"] = app.sequencer.run_web_calibration_command
+                handlers["lamps"] = app.tools.run_web_lamp_command
                 commands = DeviceCommands(handlers)
                 monitor.publish(device_controls=list(handlers))
                 web_server = start(monitor, web_host, commands=commands)

@@ -91,13 +91,14 @@ function render(state) {
     ["Dome sync", h.slewing ? "Dome moving" : h.dome ? onOff(h.sync) : "—"],
     ["Cooler", h.cooler && h.setpoint != null ? `On · set ${h.setpoint} °C` : onOff(h.cooler)],
     ["CCD", h.temperature == null ? "—" : `${h.temperature.toFixed(1)} °C`],
-    ["Binning", h.binning ?? "—"], ["Tungsten", onOff(h.tungsten)], ["Thorium", onOff(h.thorium)],
+    ["Binning", h.binning ?? "—"],
   ];
   renderDevices(state);
   const hardware = byId("hardware");
-  while (hardware.children.length > devices.length) hardware.lastElementChild.remove();
-  hardware.append(...status.map(([label, value]) => {
+  for (const item of hardware.querySelectorAll(".hardware-reading")) item.remove();
+  byId("tungsten-status").before(...status.map(([label, value]) => {
     const item = document.createElement("div");
+    item.className = "hardware-reading";
     item.append(element("dt", label), element("dd", value));
     return item;
   }));
@@ -407,6 +408,9 @@ function targetField(row, edit, field, label, display) {
 }
 
 const devices = ["camera", "telescope", "dome"];
+const lampLabels = ["tungsten", "thorium"];
+const hardwarePanels = [...devices, "lamps"];
+const lampActions = byId("lamps-panel").querySelectorAll("[data-action]");
 let hardwareState = {};
 let availableDevices = [];
 let commandPending = false;
@@ -464,6 +468,13 @@ function renderDevices(state) {
     byId(`${device}-connection`).textContent = h[device] ? "Disconnect" : "Connect";
     if (!available) setPanelOpen(device, false);
   }
+  const lampsAvailable = availableDevices.includes("lamps");
+  for (const lamp of lampLabels) {
+    byId(`${lamp}-label`).hidden = lampsAvailable;
+    byId(`${lamp}-toggle`).hidden = !lampsAvailable;
+    byId(`${lamp}-state`).textContent = onOff(h[lamp]);
+  }
+  if (!lampsAvailable) setPanelOpen("lamps", false);
   if (!commandPending) byId("camera-binning").value = h.binning ?? "";
   byId("camera-temperature").hidden = !h.camera;
   byId("camera-setpoint").placeholder = h.setpoint ?? h.saved_setpoint ?? "";
@@ -479,12 +490,19 @@ function renderDevices(state) {
 
 function setPanelOpen(device, open) {
   byId(`${device}-panel`).hidden = !open;
-  byId(`${device}-toggle`).setAttribute("aria-expanded", String(open));
+  for (const label of device === "lamps" ? lampLabels : [device]) {
+    byId(`${label}-toggle`).setAttribute("aria-expanded", String(open));
+  }
+}
+
+function toggleHardwarePanel(device) {
+  const open = byId(`${device}-panel`).hidden;
+  for (const panel of hardwarePanels) setPanelOpen(panel, panel === device && open);
 }
 
 function canCommand(device) {
   return statusLive && !commandPending && availableDevices.includes(device) &&
-    (device === "batch" || device === "calibration" || typeof hardwareState[device] === "boolean");
+    (!devices.includes(device) || typeof hardwareState[device] === "boolean");
 }
 
 const calibrationForm = byId("calibration-form");
@@ -522,6 +540,9 @@ calibrationForm.addEventListener("submit", async (event) => {
 });
 
 function updateDeviceButtons() {
+  for (const button of lampActions) {
+    button.disabled = !canCommand("lamps") || batchRunning || acquisitionBusy;
+  }
   const calibrationLocked = !canCommand("calibration") || batchRunning || acquisitionBusy;
   for (const input of calibrationFields) input.disabled = calibrationLocked;
   calibrationSave.disabled = calibrationLocked;
@@ -567,13 +588,17 @@ function updateDeviceButtons() {
 }
 
 for (const device of devices) {
-  byId(`${device}-toggle`).addEventListener("click", () => {
-    const open = byId(`${device}-panel`).hidden;
-    for (const panel of devices) setPanelOpen(panel, panel === device && open);
-  });
+  byId(`${device}-toggle`).addEventListener("click", () => toggleHardwarePanel(device));
   byId(`${device}-connection`).addEventListener("click", () => {
     sendDeviceCommand(device, {action: hardwareState[device] ? "disconnect" : "connect"});
   });
+}
+
+for (const lamp of lampLabels) {
+  byId(`${lamp}-toggle`).addEventListener("click", () => toggleHardwarePanel("lamps"));
+}
+for (const button of lampActions) {
+  button.addEventListener("click", () => sendDeviceCommand("lamps", {action: button.dataset.action}));
 }
 
 byId("camera-cooler-on").addEventListener("click", () => sendDeviceCommand("camera", {action: "cooler_on"}));

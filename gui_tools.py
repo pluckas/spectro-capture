@@ -155,33 +155,45 @@ class ToolsTab(ttk.Frame):
     # --- Manual Lamp Control handlers (added) ---
     def _tungsten_on(self):
         try:
-            lamp_on("tungsten")
-            self.context.tung_on = True        # NEW — update indicator
-            self.context.thor_on = False       # NEW — enforce mutual exclusivity
-            self.context.log("Tungsten lamp ON (manual)")
+            self._set_manual_lamp("tungsten")
         except Exception as e:
             self.context.log(f"Manual tungsten lamp control failed: {e}")
             messagebox.showerror("Lamp Control", f"Tungsten lamp error: {e}")
 
     def _thorium_on(self):
         try:
-            lamp_on("thorium")
-            self.context.thor_on = True        # NEW — update indicator
-            self.context.tung_on = False       # NEW — enforce mutual exclusivity
-            self.context.log("Thorium lamp ON (manual)")
+            self._set_manual_lamp("thorium")
         except Exception as e:
             self.context.log(f"Manual thorium lamp control failed: {e}")
             messagebox.showerror("Lamp Control", f"Thorium lamp error: {e}")
 
     def _clear_all(self):
         try:
-            lamp_off()
-            self.context.tung_on = False       # NEW — update indicators
-            self.context.thor_on = False       # NEW — update indicators
-            self.context.log("All lamps cleared (manual)")
+            self._set_manual_lamp("off")
         except Exception as e:
             self.context.log(f"Manual clear all failed: {e}")
             messagebox.showerror("Lamp Control", f"Clear all error: {e}")
+
+    def _set_manual_lamp(self, action):
+        if action == "off":
+            lamp_off()
+            message = "All lamps cleared (manual)"
+        else:
+            lamp_on(action)
+            message = f"{action.title()} lamp ON (manual)"
+        self.context.tung_on = action == "tungsten"
+        self.context.thor_on = action == "thorium"
+        self.context.log(message)
+        return message
+
+    def run_web_lamp_command(self, action, _value):
+        batch = getattr(self.context, "batch_tab", None)
+        sequencer = getattr(self.context, "sequencer_tab", None)
+        if (getattr(batch, "batch_running", False)
+                or getattr(sequencer, "sequence_running", False)
+                or self.context.camera_work_active()):
+            raise ValueError("Manual lamp controls are unavailable during acquisition or a batch.")
+        return self._set_manual_lamp(action)
 
     def _guard_connected(self):
         if not (self.context.camera and getattr(self.context.camera, "Connected", False)):

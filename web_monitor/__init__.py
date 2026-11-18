@@ -147,6 +147,7 @@ def report(context, method, *args, **kwargs):
 
 
 DEVICE_ACTIONS = {
+    "lamps": ("tungsten", "thorium", "off"),
     "calibration": ("save_settings", "start_calibration"),
     "batch": ("run", "stop", "schedule", "load_csv", "download_csv", "edit_target", "save_target_identity", "save_target_reference", "remove_target", "clear_targets", "move_target"),
     "camera": ("connect", "disconnect", "setpoint", "binning", "cooler_on", "cooler_off"),
