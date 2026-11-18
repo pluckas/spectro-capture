@@ -389,9 +389,12 @@ class BatchTab(ttk.Frame):
 
     def remove_selected(self):
         for s in self.table.selection():
-            self._row_coords.pop(s, None)
-            self.table.delete(s)
+            self._remove_target(s)
         self.status_lbl.config(text="Removed selected targets")
+
+    def _remove_target(self, item):
+        self.table.delete(item)
+        self._row_coords.pop(item, None)
 
     def clear_all(self):
         for i in self.table.get_children():
@@ -599,6 +602,13 @@ class BatchTab(ttk.Frame):
             return self._load_web_batch_csv(value)
         if action == "download_csv":
             return self._download_web_batch_csv()
+        if action == "remove_target":
+            self._require_target_list_idle()
+            item, _ = self._check_target_revision(value)
+            self._remove_target(item)
+            report(self.context, "publish", run=None)
+            self._publish_batch_status()
+            return ""
         if action == "save_target_identity":
             return self._save_web_target_identity(value)
         if action == "edit_target":

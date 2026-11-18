@@ -150,6 +150,20 @@ function openTargetEditor(edit = {}, name = "", targetRow = null) {
     (targetRow?.querySelector("button") ?? byId("batch-add-target")).focus();
   };
   form.querySelector("[data-cancel]").addEventListener("click", cancel);
+  const remove = form.querySelector("[data-remove]");
+  if (edit.id) {
+    remove.hidden = false;
+    remove.addEventListener("click", async () => {
+      if (!window.confirm(`Remove ${name} from the batch?`)) return;
+      const removed = await sendDeviceCommand("batch", {
+        action: "remove_target", edit: {id: edit.id, revision: edit.revision},
+      }, "target-identity-result");
+      if (removed && activeTargetEditor?.row === row) {
+        closeTargetEditor();
+        updateDeviceButtons();
+      }
+    });
+  }
   form.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && !commandPending) {
       event.preventDefault();
