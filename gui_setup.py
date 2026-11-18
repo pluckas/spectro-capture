@@ -376,7 +376,12 @@ class SetupTab(ttk.Frame):
         except Exception as e:
             self.context.log(f"Telescope chooser failed: {e}")
 
-    def run_web_telescope_command(self, action, _setpoint):
+    def run_web_telescope_command(self, action, value):
+        targets = self.context.targets
+        if action in ("slew_name", "slew_coords", "stop_slew"):
+            return targets.run_web_slew(action, value)
+        if targets.manual_slew_active():
+            raise RuntimeError("Wait for the current slew to finish.")
         if self.context.camera_work_active():
             raise RuntimeError("Telescope controls are unavailable while an acquisition is active.")
         if action == "connect":

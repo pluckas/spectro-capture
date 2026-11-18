@@ -81,6 +81,19 @@
     <section id="telescope-panel" class="hardware-panel" aria-label="Telescope controls" hidden>
       <button id="telescope-connection" type="button" disabled>Connect</button>
       <p id="telescope-result" role="status"></p>
+      <form id="telescope-slew">
+        <label>Slew by
+          <select id="slew-mode"><option value="name">Name</option><option value="coords">Coordinates</option></select>
+        </label>
+        <label id="slew-name-label">Target <input id="slew-name" maxlength="60" required></label>
+        <label id="slew-pm-label"><input id="slew-pm" type="checkbox" checked> Apply Proper Motion</label>
+        <label id="slew-ra-label" hidden>RA (J2000) <input id="slew-ra" maxlength="24" placeholder="hh:mm:ss" required disabled></label>
+        <label id="slew-dec-label" hidden>Dec (J2000) <input id="slew-dec" maxlength="24" placeholder="±dd:mm:ss" required disabled></label>
+        <button id="slew-start" type="submit" disabled>Slew</button>
+        <button id="slew-stop" type="button" disabled>Stop Slew</button>
+      </form>
+      <p id="slew-command-result" role="status"></p>
+      <p id="slew-result" role="status"></p>
     </section>
     <section id="dome-panel" class="hardware-panel" aria-label="Dome controls" hidden>
       <button id="dome-connection" type="button" disabled>Connect</button>

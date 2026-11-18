@@ -107,6 +107,10 @@ function render(state) {
   batchRunning = state.batch_running === true;
   batchStopping = state.batch_stopping === true;
   acquisitionBusy = state.acquisition_busy === true;
+  telescopeSlewActive = state.telescope_slew_active === true;
+  byId("slew-result").textContent = telescopeSlewActive
+    ? "Resolving or slewing…"
+    : state.telescope_slew_result ?? "";
   batchSchedule = state.batch_schedule;
   renderCalibration(state.calibration_settings);
   byId("batch-options").hidden = !batchSchedule;
@@ -419,6 +423,7 @@ let domeSyncRunning = false;
 let batchRunning = false;
 let batchStopping = false;
 let acquisitionBusy = false;
+let telescopeSlewActive = false;
 let enabledTargets = 0;
 let targetCount = 0;
 let targetListRevision;
@@ -540,6 +545,9 @@ calibrationForm.addEventListener("submit", async (event) => {
 });
 
 function updateDeviceButtons() {
+  const telescopeReady = canCommand("telescope") && hardwareState.telescope && !batchRunning;
+  byId("slew-start").disabled = !telescopeReady || telescopeSlewActive || acquisitionBusy;
+  byId("slew-stop").disabled = !telescopeReady;
   for (const button of lampActions) {
     button.disabled = !canCommand("lamps") || batchRunning || acquisitionBusy;
   }
@@ -561,7 +569,7 @@ function updateDeviceButtons() {
       control.disabled = control.hasAttribute("data-cancel") ? commandPending : !canEditTargets;
     }
   }
-  byId("batch-run").disabled = !canEditTargets || !!activeTargetEditor || !batchRunRevision || enabledTargets === 0;
+  byId("batch-run").disabled = !canEditTargets || telescopeSlewActive || !!activeTargetEditor || !batchRunRevision || enabledTargets === 0;
   byId("batch-load-csv").disabled = !canCommand("batch") || batchRunning || acquisitionBusy;
   byId("batch-download-csv").disabled = !canCommand("batch") || targetCount === 0;
   byId("batch-stop").disabled = !canCommand("batch") || !batchRunning || batchStopping;
@@ -575,6 +583,7 @@ function updateDeviceButtons() {
   for (const device of devices) {
     byId(`${device}-connection`).disabled = !canCommand(device);
   }
+  if (telescopeSlewActive) byId("telescope-connection").disabled = true;
   for (const id of ["camera-apply", "camera-cooler-on", "camera-cooler-off"]) {
     byId(id).disabled = !canCommand("camera") || !hardwareState.camera;
   }
@@ -597,6 +606,26 @@ for (const device of devices) {
 for (const lamp of lampLabels) {
   byId(`${lamp}-toggle`).addEventListener("click", () => toggleHardwarePanel("lamps"));
 }
+
+byId("slew-mode").addEventListener("change", () => {
+  const byName = byId("slew-mode").value === "name";
+  for (const field of ["name", "pm", "ra", "dec"]) {
+    const hidden = byName !== (field === "name" || field === "pm");
+    byId(`slew-${field}-label`).hidden = hidden;
+    byId(`slew-${field}`).disabled = hidden;
+  }
+});
+byId("telescope-slew").addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (byId("slew-start").disabled) return;
+  const command = byId("slew-mode").value === "name"
+    ? {action: "slew_name", options: {name: byId("slew-name").value.trim(), apply_pm: byId("slew-pm").checked}}
+    : {action: "slew_coords", options: {ra: byId("slew-ra").value.trim(), dec: byId("slew-dec").value.trim()}};
+  sendDeviceCommand("telescope", command, "slew-command-result");
+});
+byId("slew-stop").addEventListener("click", () => {
+  sendDeviceCommand("telescope", {action: "stop_slew"}, "slew-command-result");
+});
 for (const button of lampActions) {
   button.addEventListener("click", () => sendDeviceCommand("lamps", {action: button.dataset.action}));
 }

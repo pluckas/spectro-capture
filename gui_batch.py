@@ -807,6 +807,9 @@ class BatchTab(ttk.Frame):
             messagebox.showinfo("Batch", str(error))
 
     def _start_batch(self):
+        targets = getattr(self.context, "targets", None)
+        if targets and targets.manual_slew_active():
+            raise RuntimeError("Wait for the manual telescope slew to finish.")
         if self.batch_running or self.context.camera_work_active():
             raise RuntimeError("Wait for the current acquisition to finish.")
         rows = self._batch_rows()

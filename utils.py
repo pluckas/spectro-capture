@@ -393,13 +393,17 @@ def is_slewing():
         return False
 
 
-def slew_pwi4(ra_hours, dec_degs, target_name):
+def stop_pwi4_slew():
+    pwi4_request("/mount/stop")
+
+
+def slew_pwi4(ra_hours, dec_degs, target_name, *, dispatch=pwi4_request):
     """Command the PWI4 mount to slew to given J2000 coordinates."""
     import time
     print(f"Slewing to {target_name} (J2000):")
     print(f"  → RA  = {ra_hours:.6f} h")
     print(f"  → Dec = {dec_degs:.6f} °")
-    pwi4_request("/mount/goto_ra_dec_j2000", ra_hours=ra_hours, dec_degs=dec_degs)
+    dispatch("/mount/goto_ra_dec_j2000", ra_hours=ra_hours, dec_degs=dec_degs)
     while is_slewing():
         print("  ... slewing ...")
         time.sleep(2)
@@ -501,7 +505,7 @@ def parse_ra_dec_strings(ra_value, dec_value):
 # ----------------------------
 # Unified Target Slew Helper
 # ----------------------------
-def slew_target(target_name: str, apply_pm: bool = False, log_fn=print):
+def slew_target(target_name: str, apply_pm: bool = False, log_fn=print, *, dispatch=pwi4_request):
     """
     Resolve a target name via SIMBAD and slew the PWI4 mount accordingly.
 
@@ -544,7 +548,7 @@ def slew_target(target_name: str, apply_pm: bool = False, log_fn=print):
             log_fn(f"Resolved {target_name}: RA={ra_now:.6f}h, Dec={dec_now:.6f}°")
 
         log_fn(f"Slewing to {target_name} via PWI4 HTTP (apply_pm={apply_pm})...")
-        slew_pwi4(ra_now, dec_now, target_name)
+        slew_pwi4(ra_now, dec_now, target_name, dispatch=dispatch)
         log_fn(f"✅ Slew to {target_name} complete.")
         return True
 
@@ -553,7 +557,7 @@ def slew_target(target_name: str, apply_pm: bool = False, log_fn=print):
         return False
 
 
-def slew_target_coords(ra_hours: float, dec_deg: float, target_name: str = "", log_fn=print):
+def slew_target_coords(ra_hours: float, dec_deg: float, target_name: str = "", log_fn=print, *, dispatch=pwi4_request):
     """
     Slew directly to supplied coordinates, bypassing SIMBAD resolution.
     """
@@ -567,7 +571,7 @@ def slew_target_coords(ra_hours: float, dec_deg: float, target_name: str = "", l
         ra_str, dec_str = format_coords(coord)
         log_fn(f"Using supplied coordinates for {label}: RA={ra_str}, Dec={dec_str}")
         log_fn(f"Slewing to {label} via PWI4 HTTP (manual coordinates)...")
-        slew_pwi4(ra_hours, dec_deg, target_name)
+        slew_pwi4(ra_hours, dec_deg, target_name, dispatch=dispatch)
         log_fn(f"✅ Slew to {label} complete.")
         return True
     except Exception as e:

@@ -32,7 +32,6 @@ from tkinter import ttk, messagebox
 import csv
 import webbrowser
 import re
-import requests
 import threading
 
 # --- START NEW BLOCK: PWI4 + PM Imports --------------------------------------
@@ -57,7 +56,9 @@ class TargetsTab(ttk.Frame):
         self.favorites = []
         self.build_gui()
         self.load_favorites()
-        self.slew_aborted = False
+        self.manual_slew_worker = None
+        self.manual_slew_cancel = threading.Event()
+        self.manual_slew_lock = threading.Lock()
 
     # --------------------------------------------------------
     # UI Layout
@@ -178,19 +179,27 @@ class TargetsTab(ttk.Frame):
     # --------------------------------------------------------
     def slew_telescope(self):
         """Slew to the entered or selected target using unified PWI4 HTTP API."""
+        if self.manual_slew_active():
+            self.status_lbl.config(text="Wait for the current slew to finish.")
+            return
         target_name = self.target_entry.get().strip()
         if not target_name:
             messagebox.showwarning("Missing Target", "Please enter a target name or select one.")
             return
+
+        apply_pm = self.pm_var.get()
+        self.manual_slew_cancel.clear()
     
         def _run_slew():
             from utils import slew_target
             self.status_lbl.config(text=f"Slewing to {target_name}...")
-            self.slew_aborted = False
     
             try:
-                ok = slew_target(target_name, apply_pm=self.pm_var.get(), log_fn=self.context.log)
-                if ok:
+                ok = slew_target(target_name, apply_pm=apply_pm, log_fn=self.context.log,
+                                 dispatch=self._dispatch_slew)
+                if self.manual_slew_cancel.is_set():
+                    self.status_lbl.config(text="Slew cancelled.")
+                elif ok:
                     self.status_lbl.config(text=f"Slew to {target_name} complete.")
                 else:
                     self.status_lbl.config(text=f"Slew failed for {target_name}.")
@@ -198,7 +207,8 @@ class TargetsTab(ttk.Frame):
                 self.context.log(f"❌ Slew error: {e}")
                 self.status_lbl.config(text=f"Slew failed: {e}")
     
-        threading.Thread(target=_run_slew, daemon=True).start()
+        self.manual_slew_worker = threading.Thread(target=_run_slew, daemon=True)
+        self.manual_slew_worker.start()
 
     # --------------------------------------------------------
     # Other Actions
@@ -228,15 +238,81 @@ class TargetsTab(ttk.Frame):
         self.context.log(f"Opened SIMBAD for {name}")
         self.status_lbl.config(text=f"Opened SIMBAD for {name}")
 
+    def manual_slew_active(self):
+        return self.manual_slew_worker is not None and self.manual_slew_worker.is_alive()
+
+    def _stop_mount(self):
+        from utils import stop_pwi4_slew
+
+        self.manual_slew_cancel.set()
+        with self.manual_slew_lock:
+            stop_pwi4_slew()
+        self.context.log("Telescope stop command sent via PWI4.")
+
+    def _dispatch_slew(self, path, **params):
+        from utils import pwi4_request
+
+        with self.manual_slew_lock:
+            if self.manual_slew_cancel.is_set():
+                raise RuntimeError("Slew cancelled.")
+            return pwi4_request(path, **params)
+
+    def run_web_slew(self, action, options):
+        from utils import parse_ra_dec_strings, slew_target, slew_target_coords
+        from web_monitor import report
+
+        batch = getattr(self.context, "batch_tab", None)
+        if getattr(batch, "batch_running", False):
+            raise RuntimeError("Use Batch Runner Stop while a batch is active.")
+        if action == "stop_slew":
+            self._stop_mount()
+            return "Telescope stop command sent."
+        if self.manual_slew_active() or self.context.camera_work_active():
+            raise RuntimeError("Wait for the current slew or acquisition to finish.")
+        telescope = self.context.telescope
+        if not telescope or not telescope.Connected or telescope.Slewing:
+            raise RuntimeError("Connect the telescope and wait for it to stop moving.")
+
+        if action == "slew_name":
+            name = options.get("name")
+            apply_pm = options.get("apply_pm")
+            if not isinstance(name, str) or not name.strip() or type(apply_pm) is not bool:
+                raise ValueError("Enter a target name.")
+            args = (name.strip(), apply_pm)
+            slew = slew_target
+        else:
+            ra, dec = options.get("ra"), options.get("dec")
+            if not all(isinstance(value, str) and value.strip() for value in (ra, dec)):
+                raise ValueError("Enter both RA and Dec.")
+            args = parse_ra_dec_strings(ra, dec)
+            slew = slew_target_coords
+
+        self.manual_slew_cancel.clear()
+
+        def worker():
+            message = "Slew failed. See Status Log for details."
+            try:
+                ok = slew(*args, log_fn=self.context.log, dispatch=self._dispatch_slew)
+                if ok:
+                    message = "Slew complete."
+            except Exception as error:
+                self.context.log(f"Slew failed: {error}")
+            finally:
+                if self.manual_slew_cancel.is_set():
+                    message = "Slew cancelled."
+                report(self.context, "publish", telescope_slew_active=False,
+                       telescope_slew_result=message)
+
+        report(self.context, "publish", telescope_slew_active=True, telescope_slew_result="")
+        self.manual_slew_worker = threading.Thread(target=worker, daemon=True)
+        self.manual_slew_worker.start()
+        return "Slew requested."
+
     def stop_slew(self):
         """Immediately stop any telescope motion via PWI4 HTTP API."""
-        self.slew_aborted = True
         try:
-            url = "http://localhost:8220/mount/stop"
-            r = requests.get(url, timeout=5)
-            r.raise_for_status()
+            self._stop_mount()
             self.status_lbl.config(text="Slew stopped.")
-            self.context.log("Telescope slew stopped via PWI4 HTTP API.")
         except Exception as e:
             msg = f"Stop command failed: {e}"
             self.status_lbl.config(text="Stop command failed.")

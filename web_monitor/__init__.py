@@ -151,7 +151,7 @@ DEVICE_ACTIONS = {
     "calibration": ("save_settings", "start_calibration"),
     "batch": ("run", "stop", "schedule", "load_csv", "download_csv", "edit_target", "save_target_identity", "save_target_reference", "remove_target", "clear_targets", "move_target"),
     "camera": ("connect", "disconnect", "setpoint", "binning", "cooler_on", "cooler_off"),
-    "telescope": ("connect", "disconnect"),
+    "telescope": ("connect", "disconnect", "slew_name", "slew_coords", "stop_slew"),
     "dome": ("connect", "disconnect", "open", "close", "home", "park", "abort", "sync_on", "sync_off"),
 }
 
@@ -252,7 +252,7 @@ class Handler(BaseHTTPRequestHandler):
                 value = request["revision"]
                 if not isinstance(value, str):
                     raise ValueError
-            elif action in ("schedule", "save_settings", "start_calibration"):
+            elif action in ("schedule", "save_settings", "start_calibration", "slew_name", "slew_coords"):
                 value = request["options"]
                 if not isinstance(value, dict):
                     raise ValueError
