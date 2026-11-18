@@ -96,10 +96,20 @@ let batchStopping = false;
 let acquisitionBusy = false;
 let enabledTargets = 0;
 let batchSchedule;
+const batchOptionCheckboxes = [
+  ["schedule-enabled", "enabled", false],
+  ["schedule-pre-calib", "pre_calib", true],
+  ["schedule-shutdown-calib", "shutdown_calib", true],
+  ["schedule-park", "park", false],
+  ["schedule-close-dome", "close_dome", false],
+  ["schedule-warm-camera", "warm_camera", false],
+];
 
 
 function renderSchedule() {
-  byId("schedule-enabled").checked = batchSchedule.enabled;
+  for (const [id, field] of batchOptionCheckboxes) {
+    byId(id).checked = batchSchedule[field] === true;
+  }
   for (const [id, value] of [["schedule-ha-min", batchSchedule.ha_min], ["schedule-ha-max", batchSchedule.ha_max]]) {
     const input = byId(id);
     if (document.activeElement !== input) input.value = value ?? "";
@@ -157,7 +167,9 @@ function updateDeviceButtons() {
   byId("batch-run").disabled = !canCommand("batch") || batchRunning || acquisitionBusy || enabledTargets === 0;
   byId("batch-stop").disabled = !canCommand("batch") || !batchRunning || batchStopping;
   const scheduleLocked = !batchSchedule || !canCommand("batch") || batchRunning || acquisitionBusy;
-  byId("schedule-enabled").disabled = scheduleLocked;
+  for (const [id, , requiresScheduling] of batchOptionCheckboxes) {
+    byId(id).disabled = scheduleLocked || (requiresScheduling && !batchSchedule.enabled);
+  }
   for (const id of ["schedule-ha-min", "schedule-ha-max", "schedule-start"]) {
     byId(id).disabled = scheduleLocked || !batchSchedule.enabled;
   }
@@ -220,7 +232,7 @@ byId("batch-run").addEventListener("click", () => {
 byId("batch-stop").addEventListener("click", () => sendDeviceCommand("batch", {action: "stop"}));
 
 for (const [id, field, property] of [
-  ["schedule-enabled", "enabled", "checked"],
+  ...batchOptionCheckboxes.map(([id, field]) => [id, field, "checked"]),
   ["schedule-ha-min", "ha_min", "valueAsNumber"],
   ["schedule-ha-max", "ha_max", "valueAsNumber"],
   ["schedule-start", "start_local", "value"],

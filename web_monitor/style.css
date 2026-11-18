@@ -85,3 +85,7 @@ time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .6
 #batch-schedule label { display: inline-flex; align-items: center; gap: .35rem; }
 #batch-schedule input[type="number"] { width: 5rem; }
 #batch-schedule input, #batch-schedule select { font: inherit; }
+
+.batch-option-group { margin: .75rem 0 0; border: 1px solid var(--border); border-radius: .4rem; }
+.batch-option-group legend { color: var(--muted); }
+.batch-option-group label { display: inline-block; margin: .2rem .9rem .2rem 0; }

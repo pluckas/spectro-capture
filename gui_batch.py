@@ -519,6 +519,14 @@ class BatchTab(ttk.Frame):
             return self._apply_web_schedule(value)
         return self.stop_batch(from_browser=True)
 
+    WEB_BATCH_CHECKBOXES = {
+        "pre_calib": "pre_calib_var",
+        "shutdown_calib": "shutdown_calib_var",
+        "park": "park_var",
+        "close_dome": "dome_var",
+        "warm_camera": "warm_var",
+    }
+
     def _apply_web_schedule(self, options):
         if self.batch_running or self.context.camera_work_active():
             raise RuntimeError("Wait for the current acquisition to finish.")
@@ -528,6 +536,10 @@ class BatchTab(ttk.Frame):
         if field == "enabled" and type(value) is bool:
             self.smart_var.set(value)
             self._set_scheduler_enabled(value)
+        elif field in self.WEB_BATCH_CHECKBOXES and type(value) is bool:
+            if field in ("pre_calib", "shutdown_calib") and not self.smart_var.get():
+                raise ValueError("Enable Smart HA Scheduling to change calibration options.")
+            getattr(self, self.WEB_BATCH_CHECKBOXES[field]).set(value)
         elif field == "start_local" and (value == "" or value in self.scheduler_start_times):
             self.batch_start_local.set(value)
         elif field in ("ha_min", "ha_max"):
@@ -541,7 +553,7 @@ class BatchTab(ttk.Frame):
             raise ValueError("Invalid scheduling option.")
 
         self._publish_batch_status()
-        return "Scheduling options applied."
+        return ""
 
     def _web_schedule(self):
         limits = []
@@ -552,7 +564,9 @@ class BatchTab(ttk.Frame):
                 value = None
             limits.append(value if value is not None and math.isfinite(value) else None)
         return {"enabled": self.smart_var.get(), "ha_min": limits[0], "ha_max": limits[1],
-                "start_local": self.batch_start_local.get(), "start_times": self.scheduler_start_times}
+                "start_local": self.batch_start_local.get(), "start_times": self.scheduler_start_times,
+                **{field: getattr(self, variable).get()
+                   for field, variable in self.WEB_BATCH_CHECKBOXES.items()}}
 
     def run_batch(self, *, from_browser=False):
         try:

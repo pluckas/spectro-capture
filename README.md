@@ -177,8 +177,10 @@ parking, homing, or disconnecting either device.
 
 Load the target list on the Observatory PC. In the browser, open **Batch
 options** to change Smart HA Scheduling, HA Min and Max, and an optional
-start time in observatory local time. Each change updates the Windows
-Batch tab.
+start time in observatory local time. The panel also includes the
+desktop calibration checkboxes and the options to park the telescope,
+close the dome, and warm the camera after a batch. Each change updates
+the Windows Batch tab.
 In the browser’s Batch Runner card, **Run** starts the loaded batch using
 those settings. **Stop** requests the same stop as the desktop Batch tab.
 Wait for cleanup to finish before starting another batch.
