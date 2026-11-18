@@ -67,7 +67,6 @@ time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .6
 }
 .hardware-panel label, .hardware-panel form { display: inline-flex; align-items: center; gap: .5rem; }
 .hardware-panel input, .hardware-panel button { font: inherit; padding: .3rem .55rem; }
-#camera-key { width: 9rem; }
 #camera-setpoint { width: 6rem; }
 #camera-result { flex-basis: 100%; }
 #camera-result:empty { display: none; }

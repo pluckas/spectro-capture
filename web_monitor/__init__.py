@@ -5,7 +5,6 @@ from concurrent.futures import Future, TimeoutError
 from datetime import datetime, timezone
 from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from hmac import compare_digest
 import json
 import math
 from pathlib import Path
@@ -120,8 +119,7 @@ def report(context, method, *args, **kwargs):
 class CameraCommands:
     """Pass one browser request at a time to the desktop event loop."""
 
-    def __init__(self, key):
-        self.key = key.encode("utf-8")
+    def __init__(self):
         self.lock = Lock()
         self.pending = None
 
@@ -173,10 +171,6 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path != "/api/camera" or self.commands is None:
             self.send_error(404)
-            return
-        key = self.headers.get("X-Spectro-Control-Key", "").encode("utf-8")
-        if not compare_digest(key, self.commands.key):
-            self.respond_json(403, "Camera control key is incorrect.")
             return
         if self.headers.get_content_type() != "application/json":
             self.respond_json(415, "Expected JSON.")

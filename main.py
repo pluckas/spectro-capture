@@ -216,9 +216,8 @@ if __name__ == "__main__":
             try:
                 from web_monitor import CameraCommands, Monitor, start
                 monitor = Monitor()
-                key = os.environ.get("SPECTRO_WEB_CONTROL_KEY")
                 setup = app.context.setup
-                commands = CameraCommands(key) if key and setup is not None else None
+                commands = CameraCommands() if setup is not None else None
                 monitor.publish(camera_control=commands is not None)
                 web_server = start(monitor, web_host, commands=commands)
                 if commands is not None:

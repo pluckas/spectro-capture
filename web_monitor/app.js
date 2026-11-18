@@ -96,7 +96,7 @@ function renderCamera(state) {
 }
 
 function updateCameraButtons() {
-  const disabled = !cameraControl || !cameraLive || cameraPending || !byId("camera-key").value ||
+  const disabled = !cameraControl || !cameraLive || cameraPending ||
     typeof cameraConnected !== "boolean";
   byId("camera-connection").disabled = disabled;
   byId("camera-apply").disabled = disabled || !cameraConnected;
@@ -108,7 +108,6 @@ byId("camera-toggle").addEventListener("click", () => {
   byId("camera-toggle").setAttribute("aria-expanded", String(!panel.hidden));
 });
 
-byId("camera-key").addEventListener("input", updateCameraButtons);
 byId("camera-connection").addEventListener("click", () => {
   sendCameraCommand({action: cameraConnected ? "disconnect" : "connect"});
 });
@@ -129,10 +128,7 @@ async function sendCameraCommand(command) {
   try {
     const response = await fetch("/api/camera", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Spectro-Control-Key": byId("camera-key").value,
-      },
+      headers: {"Content-Type": "application/json"},
       body: JSON.stringify(command),
       signal: AbortSignal.timeout(15000),
     });
