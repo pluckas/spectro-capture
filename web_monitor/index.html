@@ -82,6 +82,17 @@
         <button id="batch-run" type="button" disabled>Run</button>
         <button id="batch-stop" type="button" disabled>Stop</button>
         <span id="batch-target-count"></span>
+        <details id="batch-options">
+          <summary>Batch options</summary>
+          <form id="batch-schedule">
+            <label><input id="schedule-enabled" type="checkbox"> Enable Smart HA Scheduling</label>
+            <label>HA Min (hrs) <input id="schedule-ha-min" type="number" min="-6" max="6" step="any" required></label>
+            <label>HA Max (hrs) <input id="schedule-ha-max" type="number" min="-6" max="6" step="any" required></label>
+            <label>Start (observatory local time) <input id="schedule-start" type="time"></label>
+            <button id="schedule-apply" type="submit">Apply scheduling</button>
+            <button id="schedule-reset" type="button" hidden>Discard changes</button>
+          </form>
+        </details>
         <p id="batch-result" role="status"></p>
       </div>
     </section>

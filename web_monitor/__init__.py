@@ -117,7 +117,7 @@ def report(context, method, *args, **kwargs):
 
 
 DEVICE_ACTIONS = {
-    "batch": ("run", "stop"),
+    "batch": ("run", "stop", "schedule"),
     "camera": ("connect", "disconnect", "setpoint", "binning", "cooler_on", "cooler_off"),
     "telescope": ("connect", "disconnect"),
     "dome": ("connect", "disconnect", "open", "close", "home", "park", "abort", "sync_on", "sync_off"),
@@ -200,6 +200,10 @@ class Handler(BaseHTTPRequestHandler):
                 if type(value) not in (float, int) or not math.isfinite(value):
                     raise ValueError
                 value = float(value)
+            elif action == "schedule":
+                value = request["options"]
+                if not isinstance(value, dict):
+                    raise ValueError
             elif action == "binning":
                 value = request["binning"]
                 if type(value) is not int or value not in (1, 2, 3):

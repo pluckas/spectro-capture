@@ -175,7 +175,10 @@ parking, homing, or disconnecting either device.
 
 #### Running a batch
 
-Load the target list and set the batch options on the Observatory PC.
+Load the target list on the Observatory PC. In the browser, open **Batch
+options** to apply Smart HA Scheduling, HA Min and Max, and an optional
+start time in observatory local time. Applied settings are shared with
+the Windows Batch tab.
 In the browser’s Batch Runner card, **Run** starts the loaded batch using
 those settings. **Stop** requests the same stop as the desktop Batch tab.
 Wait for cleanup to finish before starting another batch.

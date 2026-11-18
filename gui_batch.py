@@ -20,7 +20,7 @@ Sequencer or Auto Capture internals.
 
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
-import csv, os, threading
+import csv, math, os, threading
 from batch_runner import run_batch
 from web_monitor import describe_rows, report
 from utils import utc_hhmm_to_local_hhmm
@@ -28,6 +28,7 @@ from datetime import datetime, timezone
 
 
 class BatchTab(ttk.Frame):
+
     CSV_HEADER = [
         "Target", "RA", "Dec", "Exp (s)", "Frames",
         "Calibrate", "Enabled", "Start Time (Local)",
@@ -157,7 +158,7 @@ class BatchTab(ttk.Frame):
             [f"{h:02d}:00" for h in range(18, 24)] +
             [f"{h:02d}:00" for h in range(0, 7)]
         )
-        
+
         self.start_entry = ttk.Combobox(
             self.scheduler_frame,
             width=6,
@@ -511,10 +512,50 @@ class BatchTab(ttk.Frame):
     # ----------------------------------------------------------------------
     # Run / Stop
     # ----------------------------------------------------------------------
-    def run_web_batch_command(self, action, _value):
+    def run_web_batch_command(self, action, value):
         if action == "run":
             return self.run_batch(from_browser=True)
+        if action == "schedule":
+            return self._apply_web_schedule(value)
         return self.stop_batch(from_browser=True)
+
+    def _apply_web_schedule(self, options):
+        if self.batch_running or self.context.camera_work_active():
+            raise RuntimeError("Wait for the current acquisition to finish.")
+        enabled = options.get("enabled")
+        ha_min = options.get("ha_min")
+        ha_max = options.get("ha_max")
+        start = options.get("start_local")
+        if type(enabled) is not bool:
+            raise ValueError("Choose whether to enable Smart HA Scheduling.")
+        if (type(ha_min) not in (int, float) or type(ha_max) not in (int, float)
+                or not -6 <= ha_min <= ha_max <= 6):
+            raise ValueError("Enter HA limits between −6 and +6 hours, with Min at or below Max.")
+        if start != "":
+            try:
+                if not isinstance(start, str) or datetime.strptime(start, "%H:%M").strftime("%H:%M") != start:
+                    raise ValueError
+            except ValueError:
+                raise ValueError("Enter an observatory start time as HH:MM, or leave it blank.") from None
+
+        self.ha_min_var.set(ha_min)
+        self.ha_max_var.set(ha_max)
+        self.batch_start_local.set(start)
+        self.smart_var.set(enabled)
+        self._set_scheduler_enabled(enabled)
+        self._publish_batch_status()
+        return "Scheduling options applied."
+
+    def _web_schedule(self):
+        limits = []
+        for variable in (self.ha_min_var, self.ha_max_var):
+            try:
+                value = variable.get()
+            except tk.TclError:
+                value = None
+            limits.append(value if value is not None and math.isfinite(value) else None)
+        return {"enabled": self.smart_var.get(), "ha_min": limits[0], "ha_max": limits[1],
+                "start_local": self.batch_start_local.get()}
 
     def run_batch(self, *, from_browser=False):
         try:
@@ -594,7 +635,8 @@ class BatchTab(ttk.Frame):
                plan_mode="Hour angle" if self.smart_var.get() else "List order",
                batch_running=self.batch_running,
                batch_stopping=self.batch_running and self.context.stop_requested.is_set(),
-               acquisition_busy=self.context.camera_work_active())
+               acquisition_busy=self.context.camera_work_active(),
+               batch_schedule=self._web_schedule())
 
     # ----------------------------------------------------------------------
     # Status indicator updater
