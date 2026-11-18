@@ -31,7 +31,6 @@ import json
 import math
 import os
 import socket
-import tempfile
 import time
 from io import BytesIO
 import tkinter as tk
@@ -227,28 +226,33 @@ class GuideTab(ttk.Frame):
             from astropy.io import fits
             from PIL import Image
 
-            with tempfile.TemporaryDirectory() as folder:
-                path = Path(folder) / "guide.fits"
-                request = {"jsonrpc": "2.0", "method": "save_image",
-                           "params": {"filename": str(path)}, "id": 1}
-                # A dedicated read-only connection keeps snapshot replies separate from guide commands.
-                with socket.create_connection((self.host, 4400), timeout=3) as client:
-                    client.sendall((json.dumps(request) + "\r\n").encode())
-                    deadline = time.monotonic() + 5
-                    with client.makefile("rb") as replies:
-                        while time.monotonic() < deadline:
-                            client.settimeout(max(0.001, deadline - time.monotonic()))
-                            line = replies.readline()
-                            if not line:
-                                raise ConnectionError("PHD2 closed the snapshot connection.")
-                            response = json.loads(line)
-                            if response.get("id") == 1:
-                                if "error" in response:
-                                    raise RuntimeError(response["error"]["message"])
-                                break
-                        else:
-                            raise TimeoutError("PHD2 did not return a snapshot.")
-                pixels = np.asarray(fits.getdata(path), dtype=np.float32)
+            request = {"jsonrpc": "2.0", "method": "save_image", "id": 1}
+            # A dedicated read-only connection keeps snapshot replies separate from guide commands.
+            with socket.create_connection((self.host, 4400), timeout=3) as client:
+                client.sendall((json.dumps(request) + "\r\n").encode())
+                deadline = time.monotonic() + 5
+                with client.makefile("rb") as replies:
+                    while time.monotonic() < deadline:
+                        client.settimeout(max(0.001, deadline - time.monotonic()))
+                        line = replies.readline()
+                        if not line:
+                            raise ConnectionError("PHD2 closed the snapshot connection.")
+                        response = json.loads(line)
+                        if response.get("id") == 1:
+                            if "error" in response:
+                                raise RuntimeError(response["error"]["message"])
+                            break
+                    else:
+                        raise TimeoutError("PHD2 did not return a snapshot.")
+            result = response.get("result")
+            filename = result.get("filename") if isinstance(result, dict) else None
+            if not isinstance(filename, str) or not Path(filename).is_absolute():
+                raise RuntimeError("PHD2 did not return an absolute snapshot filename.")
+            path = Path(filename)
+            try:
+                pixels = np.asarray(fits.getdata(path, memmap=False), dtype=np.float32)
+            finally:
+                path.unlink(missing_ok=True)
             pixels = np.nan_to_num(pixels)
             low, high = np.percentile(pixels, (1, 99))
             image = Image.fromarray(np.clip((pixels - low) * (255 / max(high - low, 1)), 0, 255).astype(np.uint8))
