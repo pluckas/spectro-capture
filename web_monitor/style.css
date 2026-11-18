@@ -58,6 +58,12 @@ nav { display: grid; gap: .25rem; margin-top: 1.5rem; }
 nav > * { padding: .35rem .65rem; }
 nav span { color: var(--muted); }
 nav a { color: var(--accent); background: var(--selected); border-radius: .35rem; }
+nav button { font: inherit; text-align: left; color: var(--accent); border: 0; border-radius: .35rem; background: transparent; cursor: pointer; }
+nav button:hover { background: var(--selected); }
+.workspace-panel { margin-block: 1rem; border: 1px solid var(--border); border-radius: .5rem; }
+.workspace-panel > summary { padding: .65rem .9rem; font-size: 1.12rem; font-weight: 600; cursor: pointer; }
+.workspace-panel > summary:hover { background: var(--raised); border-radius: .5rem; }
+.workspace-panel-body { min-width: 0; padding: 0 .9rem .65rem; }
 #theme-open { margin-top: 1rem; padding: .35rem .65rem; border: 0; background: transparent; color: var(--accent); font: inherit; cursor: pointer; }
 #theme-dialog { width: min(24rem, calc(100% - 2rem)); padding: 1.25rem; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: .6rem; }
 #theme-dialog::backdrop { background: rgb(0 0 0 / .55); }

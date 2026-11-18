@@ -38,6 +38,18 @@ for (const choice of themeChoices) {
   });
 }
 
+const workspacePanels = byId("workspace-panels");
+for (const button of document.querySelectorAll("[data-open-panel]")) {
+  button.addEventListener("click", () => {
+    const panel = byId(button.dataset.openPanel);
+    if (workspacePanels.firstElementChild !== panel) workspacePanels.prepend(panel);
+    panel.open = true;
+    const summary = panel.querySelector("summary");
+    summary.focus({preventScroll: true});
+    summary.scrollIntoView({block: "nearest"});
+  });
+}
+
 function element(tag, value) {
   const node = document.createElement(tag);
   node.textContent = value;
