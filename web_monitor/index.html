@@ -17,7 +17,7 @@
       <button type="button" data-open-panel="fits-panel" aria-controls="fits-panel">FITS Viewer</button>
       <span>Sequencer</span><span>Telescope</span>
       <span>Guiding</span><span>Focus</span>
-      <button type="button" data-open-panel="calibration-panel" aria-controls="calibration-panel">Calibration</button>
+      <button type="button" data-open-panel="calibration-panel" aria-controls="calibration-panel">Calibration Settings</button>
       <span>Setup</span>
       <button id="theme-open" type="button" aria-haspopup="dialog">Theme</button>
     </nav>
@@ -182,10 +182,9 @@
         </div>
       </details>
       <details id="calibration-panel" class="workspace-panel">
-        <summary>Calibration</summary>
+        <summary>Calibration Settings</summary>
         <div class="workspace-panel-body">
           <form id="calibration-form" hidden>
-            <p>Batch Runner and standalone calibration use these settings.</p>
             <fieldset class="batch-option-group">
               <legend>Tungsten</legend>
               <label>Exposure (s) <input name="tung_exp" type="number" min="0" step="any" required></label>
@@ -198,11 +197,15 @@
             </fieldset>
             <div class="batch-commands">
               <button id="calibration-save" type="submit">Apply Settings</button>
+              <span id="calibration-settings-result" role="status"></span>
+            </div>
+            <fieldset class="batch-option-group">
+              <legend>Run Manual Calibration</legend>
               <label>Run name <input id="calibration-name" type="text" maxlength="60"></label>
               <button id="calibration-run" type="submit">Run Calibration</button>
-            </div>
+              <div id="calibration-result" role="status"></div>
+            </fieldset>
           </form>
-          <p id="calibration-result" role="status"></p>
         </div>
       </details>
       <details id="fits-panel" class="workspace-panel">

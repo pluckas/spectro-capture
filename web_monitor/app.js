@@ -515,7 +515,7 @@ calibrationForm.addEventListener("submit", async (event) => {
   const saved = await sendDeviceCommand("calibration", {
     action: run ? "start_calibration" : "save_settings",
     options,
-  });
+  }, run ? "calibration-result" : "calibration-settings-result");
   if (saved) {
     for (const input of calibrationFields) delete input.dataset.edited;
   }
