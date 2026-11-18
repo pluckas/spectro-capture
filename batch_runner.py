@@ -49,6 +49,7 @@ from phd2_control import (
 
 from utils import (
     hour_angle_hours,
+    parse_ra_dec_strings,
     resolve_target_simbad,
     nautical_dawn_utc,
 )
@@ -358,6 +359,12 @@ def run_batch(context, rows):
                     if not _wait_until_target_start_utc(context, start_time_ut, target):
                         break  # stop requested during wait
 
+                coord_error = block.get("coord_error")
+                if coord_error:
+                    _mark_target_failed(context, block, coord_error)
+                    context.log("")
+                    continue
+
                 # Announce
                 done_count = sum(1 for b in blocks if b.get("completed"))
                 total_enabled = sum(1 for b in blocks if b.get("enabled"))
@@ -375,7 +382,11 @@ def run_batch(context, rows):
                 # Science target
                 science_ok = False
                 try:
-                    run_single_target(context, target, exp_s, frames, include_calibs)
+                    run_single_target(
+                        context, target, exp_s, frames, include_calibs,
+                        ra_hours=block.get("ra_hours"),
+                        dec_deg=block.get("dec_deg"),
+                    )
                     if context.stop_requested.is_set():
                         context.log("🛑 Stop requested during science target — aborting batch.")
                         break
@@ -520,16 +531,26 @@ def _parse_rows_to_blocks(context, rows):
     for i, row in enumerate(rows):
         try:
             name = str(row[0]).strip()
-            exp_s = float(row[1])
-            frames = int(row[2])
+            ra_text = row[1] if len(row) > 1 else ""
+            dec_text = row[2] if len(row) > 2 else ""
+            exp_s = float(row[3])
+            frames = int(row[4])
 
-            calibrate = str(row[3]).strip() == "✓"
-            enabled = not (len(row) >= 5 and str(row[4]).strip() == "✗")
-            start_time = row[5] if len(row) >= 6 else ""
+            calibrate = str(row[5]).strip() == "✓"
+            enabled = not (len(row) >= 7 and str(row[6]).strip() == "✗")
+            start_time = row[7] if len(row) >= 8 else ""
 
-            ref_star = row[6] if len(row) > 6 else ""
-            ref_exp = row[7] if len(row) > 7 else ""
-            ref_frames = row[8] if len(row) > 8 else ""
+            ref_star = row[8] if len(row) > 8 else ""
+            ref_exp = row[9] if len(row) > 9 else ""
+            ref_frames = row[10] if len(row) > 10 else ""
+
+            ra_hours = None
+            dec_deg = None
+            coord_error = None
+            try:
+                ra_hours, dec_deg = parse_ra_dec_strings(ra_text, dec_text)
+            except Exception as e:
+                coord_error = str(e)
 
             if not name:
                 raise ValueError("blank target name")
@@ -547,7 +568,9 @@ def _parse_rows_to_blocks(context, rows):
             "enabled": enabled,
             "start_time": start_time,
             "completed": False,
-            "ra_hours": None,
+            "ra_hours": ra_hours,
+            "dec_deg": dec_deg,
+            "coord_error": coord_error,
             "reference": (
                 {
                     "name": str(ref_star).strip(),
@@ -578,6 +601,11 @@ def _next_conventional_block(blocks, idx):
             continue
         return b, idx
     return None, idx
+
+
+def _mark_target_failed(context, block, reason: str):
+    context.log(f"❌ Target '{block['name']}' failed: {reason}")
+    block["completed"] = True
 
 def _will_target_enter_ha_window_before_cutoff(
     ra_hours: float,
@@ -758,6 +786,9 @@ def _next_ha_block(context, blocks, ha_min, ha_max):
             continue
         if b.get("completed", False):
             continue
+        if b.get("coord_error"):
+            _mark_target_failed(context, b, b["coord_error"])
+            continue
         remaining += 1
 
         if b["ra_hours"] is None:
@@ -785,7 +816,7 @@ def _next_ha_block(context, blocks, ha_min, ha_max):
             science=Target(
                 name=b["name"],
                 ra_hours=b["ra_hours"],
-                dec_deg=0.0,
+                dec_deg=float(b.get("dec_deg") or 0.0),
                 exp_s=float(b["exp_s"]),
                 frames=int(b["frames"]),
                 calibrate=bool(b["calibrate"]),
@@ -1080,7 +1111,7 @@ def run_reference_target(context, ref_name, exp_s, frames):
 # ---------------------------------------------------------------------------
 # Core execution: one target (science or reference)
 # ---------------------------------------------------------------------------
-def run_single_target(context, target_name, exp_s, frames, include_calibs=True):
+def run_single_target(context, target_name, exp_s, frames, include_calibs=True, ra_hours=None, dec_deg=None):
     # STOP is owned by the batch controller, not per-target execution.
     # Adaptive exposure is strictly per-target
     context.adaptive_stop = threading.Event()
@@ -1108,9 +1139,12 @@ def run_single_target(context, target_name, exp_s, frames, include_calibs=True):
         # Slew telescope (via PWI4 HTTP)
         # --------------------------------------------------
         try:
-            from utils import slew_target
+            from utils import slew_target, slew_target_coords
             context.log(f"Initiating PWI4 slew for target: {target_name}")
-            ok = slew_target(target_name, apply_pm=True, log_fn=context.log)
+            if ra_hours is not None and dec_deg is not None:
+                ok = slew_target_coords(ra_hours, dec_deg, target_name=target_name, log_fn=context.log)
+            else:
+                ok = slew_target(target_name, apply_pm=True, log_fn=context.log)
             if not ok:
                 context.log(f"⚠️ Slew to {target_name} failed or skipped.")
         except Exception as e:
