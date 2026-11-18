@@ -97,6 +97,17 @@ class SetupTab(ttk.Frame):
     def run_web_camera_command(self, action, value):
         if self.context.camera_work_active():
             raise RuntimeError("Camera controls are unavailable while an acquisition is active.")
+        if action == "test_image":
+            batch = getattr(self.context, "batch_tab", None)
+            targets = getattr(self.context, "targets", None)
+            seq = self.context.sequencer_tab
+            if (getattr(batch, "batch_running", False) or seq.sequence_running
+                    or (targets and targets.manual_slew_active())):
+                raise RuntimeError("Wait for the batch, sequence or slew to finish.")
+            if not self.context.camera or not self.context.camera.Connected:
+                raise RuntimeError("Camera is disconnected.")
+            seq.start_single_preview(value, int(self.context.current_binning))
+            return "Test exposure started. The preview will appear in the FITS Viewer."
         if action == "connect":
             return self.connect_camera(from_browser=True)
         if action == "disconnect":

@@ -483,6 +483,7 @@ function renderDevices(state) {
   if (!lampsAvailable) setPanelOpen("lamps", false);
   if (!commandPending) byId("camera-binning").value = h.binning ?? "";
   byId("camera-temperature").hidden = !h.camera;
+  byId("camera-test-image").hidden = !h.camera;
   byId("camera-setpoint").placeholder = h.setpoint ?? h.saved_setpoint ?? "";
   domeOperations.hidden = !h.dome;
 
@@ -595,6 +596,8 @@ function updateDeviceButtons() {
     byId(id).disabled = !canCommand("camera") || !hardwareState.camera;
   }
   byId("camera-binning").disabled = !canCommand("camera");
+  byId("camera-test-start").disabled =
+    !canCommand("camera") || !hardwareState.camera || batchRunning || acquisitionBusy || telescopeSlewActive;
   const domeDisabled = !canCommand("dome") || !hardwareState.dome;
   for (const button of domeActions) {
     const positionCommand = ["home", "park"].includes(button.dataset.action);
@@ -639,6 +642,19 @@ for (const button of lampActions) {
 
 byId("camera-cooler-on").addEventListener("click", () => sendDeviceCommand("camera", {action: "cooler_on"}));
 byId("camera-cooler-off").addEventListener("click", () => sendDeviceCommand("camera", {action: "cooler_off"}));
+byId("camera-test-image").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (byId("camera-test-start").disabled) return;
+  const exposure = byId("camera-test-seconds");
+  if (!(exposure.valueAsNumber > 0)) {
+    byId("camera-result").textContent = "Enter an exposure time greater than zero.";
+    return;
+  }
+  if (await sendDeviceCommand("camera", {action: "test_image", seconds: exposure.valueAsNumber})) {
+    if (!fitsPanel.open) document.querySelector('[data-open-panel="fits-panel"]').click();
+  }
+});
+
 byId("camera-temperature").addEventListener("submit", (event) => {
   event.preventDefault();
   const input = byId("camera-setpoint");

@@ -541,6 +541,10 @@ class SequencerTab(ttk.Frame, SafeLogMixin):
         except Exception as e:
             messagebox.showerror("Error", f"Bad exposure value: {e}")
             return
+
+        self.start_single_preview(exp, binning, select_desktop_viewer=True)
+
+    def start_single_preview(self, exp, binning, *, select_desktop_viewer=False):
     
         self._on_run_start()
         self.status_lbl.config(text="Taking single image")  # <-- add this
@@ -559,7 +563,13 @@ class SequencerTab(ttk.Frame, SafeLogMixin):
                 # Start exposure
                 cam.StartExposure(float(exp), True)
         
+                deadline = time.monotonic() + exp + 120
                 while not cam.ImageReady:
+                    if not self.sequence_running:
+                        return
+                    if time.monotonic() >= deadline:
+                        cam.AbortExposure()
+                        raise TimeoutError("Camera did not return a preview frame.")
                     time.sleep(0.05)
         
                 # Get image
@@ -574,22 +584,19 @@ class SequencerTab(ttk.Frame, SafeLogMixin):
                     arr = arr.T
                 
                 # --- write to a temp FITS file ---
-                tmp = tempfile.NamedTemporaryFile(suffix=".fits", delete=False)
-                tmp.close()
-                fits.writeto(tmp.name, arr, overwrite=True)
-        
-                # --- load into viewer ---
-                self.context.viewer.load_fits(tmp.name)
-                self.context.notebook.select(self.context.viewer)   # switch to Viewer tab
-        
-                # --- delete temp file ---
-                os.remove(tmp.name)
+                with tempfile.TemporaryDirectory() as folder:
+                    path = Path(folder) / "preview.fits"
+                    fits.writeto(path, arr)
+                    self.context.viewer.load_fits(path)
+                if select_desktop_viewer:
+                    self.context.notebook.select(self.context.viewer)
         
                 self.safe_log(f"Single check exposure complete (temp only). Max ADU={arr.max()}")
         
             except Exception as e:
                 self.safe_log(f"Single exposure error: {e}")
             finally:
+                pythoncom.CoUninitialize()
                 self.after(0, self._on_run_finished)
     
         self.context.start_camera_worker(threading.Thread(target=worker, daemon=True))

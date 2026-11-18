@@ -150,7 +150,7 @@ DEVICE_ACTIONS = {
     "lamps": ("tungsten", "thorium", "off"),
     "calibration": ("save_settings", "start_calibration"),
     "batch": ("run", "stop", "schedule", "load_csv", "download_csv", "edit_target", "save_target_identity", "save_target_reference", "remove_target", "clear_targets", "move_target"),
-    "camera": ("connect", "disconnect", "setpoint", "binning", "cooler_on", "cooler_off"),
+    "camera": ("connect", "disconnect", "setpoint", "binning", "cooler_on", "cooler_off", "test_image"),
     "telescope": ("connect", "disconnect", "slew_name", "slew_coords", "stop_slew"),
     "dome": ("connect", "disconnect", "open", "close", "home", "park", "abort", "sync_on", "sync_off"),
 }
@@ -238,6 +238,11 @@ class Handler(BaseHTTPRequestHandler):
             if action == "setpoint":
                 value = request["setpoint"]
                 if type(value) not in (float, int) or not math.isfinite(value):
+                    raise ValueError
+                value = float(value)
+            elif action == "test_image":
+                value = request["seconds"]
+                if type(value) not in (float, int) or not math.isfinite(value) or value <= 0:
                     raise ValueError
                 value = float(value)
             elif action == "load_csv":
