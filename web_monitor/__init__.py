@@ -117,6 +117,7 @@ def report(context, method, *args, **kwargs):
 
 
 DEVICE_ACTIONS = {
+    "batch": ("run", "stop"),
     "camera": ("connect", "disconnect", "setpoint", "binning", "cooler_on", "cooler_off"),
     "telescope": ("connect", "disconnect"),
     "dome": ("connect", "disconnect", "open", "close", "home", "park", "abort", "sync_on", "sync_off"),
@@ -134,7 +135,7 @@ class DeviceCommands:
     def submit(self, device, action, value):
         with self.lock:
             if self.pending is not None and not self.pending[0].done():
-                return 409, "A hardware command is already pending."
+                return 409, "A command is already pending."
             result = Future()
             self.pending = (result, device, action, value)
         try:
@@ -142,7 +143,7 @@ class DeviceCommands:
         except TimeoutError:
             if result.cancel():
                 return 503, "Desktop did not respond. Command was cancelled."
-            return 504, "The result is pending. Check the device status before trying again."
+            return 504, "The result is pending. Check the status before trying again."
 
     def poll(self, root):
         with self.lock:
@@ -204,7 +205,7 @@ class Handler(BaseHTTPRequestHandler):
                 if type(value) is not int or value not in (1, 2, 3):
                     raise ValueError
         except (KeyError, TypeError, ValueError, OverflowError, OSError):
-            self.respond_json(400, "Invalid hardware command.")
+            self.respond_json(400, "Invalid command.")
             return
 
         status, message = self.commands.submit(device, action, value)

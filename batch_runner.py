@@ -215,7 +215,7 @@ def _check_dome_safety_or_abort(context, where: str) -> bool:
 # Batch public entrypoint
 # ---------------------------------------------------------------------------
 def run_batch(context, rows):
-    """Run multiple targets sequentially in a background thread."""
+    """Run targets on the batch tab’s worker thread."""
     def batch_worker():
         try:
             execute_batch()
@@ -223,7 +223,6 @@ def run_batch(context, rows):
             report(context, "finish", context.stop_requested.is_set())
 
     def execute_batch():
-        report(context, "begin", rows, bool(getattr(context, "batch_smart_mode", False)))
         total_rows = len(rows)
         context.log(f"🚀 Batch run started ({total_rows} rows)")
         
@@ -530,13 +529,11 @@ def run_batch(context, rows):
             # No targets started -> do not run optional shutdown actions
             if not first_target_started:
                 context.log("ℹ️ No science targets started — skipping shutdown actions.")
-                _notify_gui_finished(context)
                 return
 
             _run_optional_shutdown_actions(context)
-            _notify_gui_finished(context)
 
-    context.start_camera_worker(threading.Thread(target=batch_worker, daemon=True))
+    batch_worker()
 
 
 # ---------------------------------------------------------------------------
@@ -1044,15 +1041,6 @@ def _maybe_park_for_idle_gap_before_next_scheduled(context, blocks, next_idx):
 # ---------------------------------------------------------------------------
 # Shutdown + GUI cleanup
 # ---------------------------------------------------------------------------
-def _notify_gui_finished(context):
-    bt = getattr(context, "batch_tab", None)
-    if bt and hasattr(bt, "on_batch_finished"):
-        try:
-            bt.on_batch_finished()
-        except Exception:
-            pass
-
-
 def _run_optional_shutdown_actions(context):
     bt = getattr(context, "batch_tab", None)
 

@@ -56,6 +56,7 @@ class BatchTab(ttk.Frame):
         self.context = context
         context.batch_tab = self
         self.batch_running = False
+        self._batch_worker = None
         self.stop_requested = False
         self._row_coords = {}
 
@@ -510,83 +511,90 @@ class BatchTab(ttk.Frame):
     # ----------------------------------------------------------------------
     # Run / Stop
     # ----------------------------------------------------------------------
-    def run_batch(self):
-        if self.batch_running:
-            messagebox.showinfo("Batch", "Already running.")
-            return
-        rows = [self._full_row_values(i) for i in self.table.get_children()]
-        if not rows:
-            messagebox.showinfo("Batch", "No targets in list.")
-            return
+    def run_web_batch_command(self, action, _value):
+        if action == "run":
+            return self.run_batch(from_browser=True)
+        return self.stop_batch(from_browser=True)
 
-        if not hasattr(self.context, "stop_requested") \
-           or not isinstance(self.context.stop_requested, threading.Event):
-            self.context.stop_requested = threading.Event()
-        else:
-            self.context.stop_requested.clear()
+    def run_batch(self, *, from_browser=False):
+        try:
+            return self._start_batch()
+        except (ValueError, RuntimeError) as error:
+            if from_browser:
+                raise
+            messagebox.showinfo("Batch", str(error))
 
-        self.batch_running = True
+    def _start_batch(self):
+        if self.batch_running or self.context.camera_work_active():
+            raise RuntimeError("Wait for the current acquisition to finish.")
+        rows = [self._full_row_values(item) for item in self.table.get_children()]
+        if not any(row["enabled"] for row in describe_rows(rows)):
+            raise ValueError("No enabled targets in the batch.")
+
+        smart = self.smart_var.get()
+        ha_min = float(self.ha_min_var.get())
+        ha_max = float(self.ha_max_var.get())
+        start_utc = None
+        local_str = self.batch_start_local.get().strip()
+        if smart and local_str:
+            from utils import local_hhmm_to_utc_hhmm
+            hh, mm = map(int, local_hhmm_to_utc_hhmm(local_str).split(":"))
+            start_utc = datetime.now(timezone.utc).replace(hour=hh, minute=mm, second=0, microsecond=0)
+
+        self.context.batch_smart_mode = smart
+        self.context.batch_ha_min = ha_min
+        self.context.batch_ha_max = ha_max
+        self.context.batch_start_utc = start_utc
+        self.context.batch_stop_utc = None
+        self.context.stop_requested.clear()
         self.stop_requested = False
         self._dome_blink = False
+
+        worker = threading.Thread(target=run_batch, args=(self.context, rows), daemon=True)
+        self._batch_worker = worker
+        self.batch_running = True
+        report(self.context, "begin", rows, smart)
+        try:
+            self.context.start_camera_worker(worker)
+        except RuntimeError:
+            self.batch_running = False
+            self._batch_worker = None
+            report(self.context, "finish", False)
+            raise
         self.status_lbl.config(text="Starting batch run…")
         self.context.log(f"Starting batch run ({len(rows)} targets)")
+        self._publish_batch_status(rows)
+        return "Batch start requested."
 
-        # Push scheduler settings into context
-        self.context.batch_smart_mode = self.smart_var.get()
-        self.context.batch_ha_min = float(self.ha_min_var.get())
-        self.context.batch_ha_max = float(self.ha_max_var.get())
-        
-        # ===== BEGIN FIX: scheduler start time wiring =====
-        # Only applies to scheduler (HA) mode
-        
-        if self.smart_var.get():
-            local_str = self.batch_start_local.get().strip()
-            if local_str:
-                from utils import local_hhmm_to_utc_hhmm
-                hhmm_utc = local_hhmm_to_utc_hhmm(local_str)
-        
-                hh, mm = map(int, hhmm_utc.split(":"))
-                now_utc = datetime.now(timezone.utc)
-                self.context.batch_start_utc = now_utc.replace(
-                    hour=hh, minute=mm, second=0, microsecond=0
-                )
-            else:
-                self.context.batch_start_utc = None
-        else:
-            self.context.batch_start_utc = None
-        
-        self.context.batch_stop_utc = None
-        # ===== END FIX =====
-
-        
-        self.context.start_camera_worker(threading.Thread(
-            target=run_batch,
-            args=(self.context, rows),
-            daemon=True
-        ))
-
-    def stop_batch(self):
-        if not self.batch_running:
+    def stop_batch(self, *, from_browser=False):
+        if not self.batch_running or not self._batch_worker.is_alive():
+            if from_browser:
+                raise RuntimeError("No batch is running.")
             return
+        if self.context.stop_requested.is_set():
+            return "Batch is already stopping."
+
         self.stop_requested = True
-        if hasattr(self.context, "stop_requested"):
-            self.context.stop_requested.set()
+        self.context.stop_requested.set()
         report(self.context, "stopping")
         self.status_lbl.config(text="Stopping batch…")
         self.context.log("Batch stop requested.")
+        self._publish_batch_status()
 
         from utils import abort_all
         abort_all(self.context)
+        return "Batch stop requested."
 
-    # ----------------------------------------------------------------------
-    # Batch finished handler
-    # ----------------------------------------------------------------------
-    def on_batch_finished(self):
-        self.batch_running = False
-        try:
-            self.status_lbl.config(text="Idle")
-        except:
-            pass
+    def _publish_batch_status(self, rows=None):
+        if getattr(self.context, "web_monitor", None) is None:
+            return
+        if rows is None:
+            rows = [self._full_row_values(item) for item in self.table.get_children()]
+        report(self.context, "publish", plan=describe_rows(rows),
+               plan_mode="Hour angle" if self.smart_var.get() else "List order",
+               batch_running=self.batch_running,
+               batch_stopping=self.batch_running and self.context.stop_requested.is_set(),
+               acquisition_busy=self.context.camera_work_active())
 
     # ----------------------------------------------------------------------
     # Status indicator updater
@@ -601,14 +609,10 @@ class BatchTab(ttk.Frame):
                 self._sync_blink
             )
 
-            if getattr(self.context, "web_monitor", None) is not None:
-                rows = [self._full_row_values(item) for item in self.table.get_children()]
-                report(self.context, "publish", plan=describe_rows(rows),
-                       plan_mode="Hour angle" if self.smart_var.get() else "List order")
-
-            if self.batch_running:
-                if self.context.stop_requested.is_set():
-                    self.batch_running = False
-                    self.status_lbl.config(text="Idle")
+            if self.batch_running and not self._batch_worker.is_alive() and not self.context.camera_work_active():
+                self.batch_running = False
+                self._batch_worker = None
+                self.status_lbl.config(text="Idle")
+            self._publish_batch_status()
         finally:
             self.after(1000, self.refresh_batch_status)

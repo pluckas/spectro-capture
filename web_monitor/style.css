@@ -73,3 +73,8 @@ time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .6
 .hardware-panel > [role="status"]:empty { display: none; }
 
 .dome-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .4rem; }
+
+.batch-commands { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem .75rem; margin-top: .75rem; }
+.batch-commands button { font: inherit; padding: .3rem .85rem; }
+#batch-result { flex-basis: 100%; }
+#batch-result:empty { display: none; }

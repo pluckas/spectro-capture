@@ -224,6 +224,9 @@ if __name__ == "__main__":
                     handlers["telescope"] = setup.run_web_telescope_command
                 if dome_tab is not None:
                     handlers["dome"] = dome_tab.run_web_dome_command
+                batch_tab = getattr(app.context, "batch_tab", None)
+                if batch_tab is not None:
+                    handlers["batch"] = batch_tab.run_web_batch_command
                 commands = DeviceCommands(handlers)
                 monitor.publish(device_controls=list(handlers))
                 web_server = start(monitor, web_host, commands=commands)

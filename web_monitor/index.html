@@ -78,6 +78,12 @@
       <h2 id="activity">Waiting for status</h2>
       <p id="exposure" hidden></p>
       <progress id="progress" aria-label="Current exposure" hidden></progress>
+      <div id="batch-commands" class="batch-commands" hidden>
+        <button id="batch-run" type="button" disabled>Run</button>
+        <button id="batch-stop" type="button" disabled>Stop</button>
+        <span id="batch-target-count"></span>
+        <p id="batch-result" role="status"></p>
+      </div>
     </section>
     <section aria-labelledby="targets">
       <h2 id="targets">Targets</h2>

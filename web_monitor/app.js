@@ -29,9 +29,17 @@ function render(state) {
   }));
 
   const run = state.run;
-  const exposure = run?.exposure;
-  byId("mode").textContent = run?.mode ?? state.plan_mode ?? "";
-  byId("activity").textContent = run?.activity ?? "Idle";
+  batchRunning = state.batch_running === true;
+  batchStopping = state.batch_stopping === true;
+  acquisitionBusy = state.acquisition_busy === true;
+  enabledTargets = state.plan.filter((row) => row.enabled).length;
+  const exposure = batchStopping ? null : run?.exposure;
+  const mode = batchRunning && run?.running ? run.mode : state.plan_mode ?? "";
+  byId("mode").textContent = mode;
+  byId("activity").textContent = batchStopping ? "Stopping…" :
+    batchRunning ? (run?.running ? run.activity : "Finishing batch…") : "Idle";
+  byId("batch-commands").hidden = !availableDevices.includes("batch");
+  byId("batch-target-count").textContent = `${enabledTargets} enabled ${enabledTargets === 1 ? "target" : "targets"}`;
   byId("exposure").hidden = byId("progress").hidden = !exposure;
   if (exposure) {
     byId("exposure").textContent =
@@ -80,6 +88,10 @@ let availableDevices = [];
 let commandPending = false;
 let statusLive = false;
 let domeSyncRunning = false;
+let batchRunning = false;
+let batchStopping = false;
+let acquisitionBusy = false;
+let enabledTargets = 0;
 const domeOperations = byId("dome-operations");
 const domeActions = domeOperations.querySelectorAll("[data-action]");
 
@@ -118,10 +130,12 @@ function setPanelOpen(device, open) {
 
 function canCommand(device) {
   return statusLive && !commandPending && availableDevices.includes(device) &&
-    typeof hardwareState[device] === "boolean";
+    (device === "batch" || typeof hardwareState[device] === "boolean");
 }
 
 function updateDeviceButtons() {
+  byId("batch-run").disabled = !canCommand("batch") || batchRunning || acquisitionBusy || enabledTargets === 0;
+  byId("batch-stop").disabled = !canCommand("batch") || !batchRunning || batchStopping;
   for (const device of devices) {
     byId(`${device}-connection`).disabled = !canCommand(device);
   }
@@ -173,6 +187,13 @@ byId("dome-sync").addEventListener("click", () => {
   }
 });
 
+byId("batch-run").addEventListener("click", () => {
+  if (window.confirm(`Run batch with ${byId("batch-target-count").textContent} in ${byId("mode").textContent.toLowerCase()} mode?`)) {
+    sendDeviceCommand("batch", {action: "run"});
+  }
+});
+byId("batch-stop").addEventListener("click", () => sendDeviceCommand("batch", {action: "stop"}));
+
 async function sendDeviceCommand(device, command) {
   if (!canCommand(device)) return;
   const result = byId(`${device}-result`);
@@ -188,7 +209,7 @@ async function sendDeviceCommand(device, command) {
     });
     result.textContent = (await response.json()).message;
   } catch {
-    result.textContent = "No command result received. Check device status before trying again.";
+    result.textContent = "No command result received. Check status before trying again.";
   } finally {
     commandPending = false;
     statusLive = false;
@@ -211,7 +232,7 @@ async function refresh() {
     statusLive = !stale;
     byId("connection").textContent = stale
       ? `Waiting for desktop refresh · ${clock(lastUpdate)}`
-      : `${availableDevices.length ? "Hardware controls enabled" : "Read-only"} · Updated ${clock(lastUpdate)}`;
+      : `${availableDevices.length ? "Controls enabled" : "Read-only"} · Updated ${clock(lastUpdate)}`;
   } catch {
     statusLive = false;
     byId("connection").textContent = `Connection lost · Last update ${clock(lastUpdate)}`;

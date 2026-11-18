@@ -172,3 +172,10 @@ the desktop Dome tab and leaves the sync setting as it was.
 Dome Abort remains available during acquisition. Other browser telescope
 and dome commands, including Close Shutter, are blocked. Disable dome sync and let it stop before
 parking, homing, or disconnecting either device.
+
+#### Running a batch
+
+Load the target list and set the batch options on the Observatory PC.
+In the browser’s Batch Runner card, **Run** starts the loaded batch using
+those settings. **Stop** requests the same stop as the desktop Batch tab.
+Wait for cleanup to finish before starting another batch.
