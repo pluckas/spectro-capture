@@ -12,15 +12,14 @@ function element(tag, value) {
 function render(state) {
   const h = state.hardware;
   const status = [
-    ["Telescope", connected(h.telescope)], ["Dome", connected(h.dome)],
     ["Dome sync", h.slewing ? "Dome moving" : h.dome ? onOff(h.sync) : "—"],
     ["Cooler", h.cooler && h.setpoint != null ? `On · set ${h.setpoint} °C` : onOff(h.cooler)],
     ["CCD", h.temperature == null ? "—" : `${h.temperature.toFixed(1)} °C`],
     ["Binning", h.binning ?? "—"], ["Tungsten", onOff(h.tungsten)], ["Thorium", onOff(h.thorium)],
   ];
-  renderCamera(state);
+  renderDevices(state);
   const hardware = byId("hardware");
-  while (hardware.children.length > 1) hardware.lastElementChild.remove();
+  while (hardware.children.length > devices.length) hardware.lastElementChild.remove();
   hardware.append(...status.map(([label, value]) => {
     const item = document.createElement("div");
     item.append(element("dt", label), element("dd", value));
@@ -73,67 +72,107 @@ function render(state) {
   }));
 }
 
-let cameraConnected;
-let cameraPending = false;
-let cameraLive = false;
-let cameraControl = false;
+const devices = ["camera", "telescope", "dome"];
+let hardwareState = {};
+let availableDevices = [];
+let commandPending = false;
+let statusLive = false;
+let domeSyncRunning = false;
+const domeOperations = byId("dome-operations");
+const domeActions = domeOperations.querySelectorAll("[data-action]");
 
-function renderCamera(state) {
+function renderDevices(state) {
   const h = state.hardware;
-  cameraControl = state.camera_control === true;
-  if (h.camera && !cameraConnected) {
+  if (h.camera && !hardwareState.camera) {
     byId("camera-setpoint").value = h.setpoint ?? h.saved_setpoint ?? "";
   }
-  cameraConnected = h.camera;
-  byId("camera-label").hidden = cameraControl;
-  byId("camera-toggle").hidden = !cameraControl;
-  byId("camera-state").textContent = connected(h.camera);
-  byId("camera-connection").textContent = h.camera ? "Disconnect" : "Connect";
+  hardwareState = h;
+  availableDevices = state.device_controls ?? [];
+  for (const device of devices) {
+    const available = availableDevices.includes(device);
+    byId(`${device}-label`).hidden = available;
+    byId(`${device}-toggle`).hidden = !available;
+    byId(`${device}-state`).textContent = connected(h[device]);
+    byId(`${device}-connection`).textContent = h[device] ? "Disconnect" : "Connect";
+    if (!available) setPanelOpen(device, false);
+  }
   byId("camera-temperature").hidden = !h.camera;
-  const setpoint = byId("camera-setpoint");
-  setpoint.placeholder = h.setpoint ?? h.saved_setpoint ?? "";
-  if (!cameraControl) {
-    byId("camera-panel").hidden = true;
-    byId("camera-toggle").setAttribute("aria-expanded", "false");
-  }
+  byId("camera-setpoint").placeholder = h.setpoint ?? h.saved_setpoint ?? "";
+  domeOperations.hidden = !h.dome;
+
+  const dome = state.dome_status ?? {};
+  domeSyncRunning = dome.sync === true;
+  const sync = domeSyncRunning ? (h.sync ? "On" : "Stopping") : (h.sync ? "Inactive" : "Off");
+  byId("dome-detail").textContent =
+    `Shutter ${dome.shutter ?? "—"} · ${dome.motion ?? "—"} · ${dome.azimuth ?? "—"} · Sync ${sync}`;
+  byId("dome-sync").textContent = h.sync ? "Disable Sync" : "Enable Sync";
 }
 
-function updateCameraButtons() {
-  const disabled = !cameraControl || !cameraLive || cameraPending ||
-    typeof cameraConnected !== "boolean";
-  byId("camera-connection").disabled = disabled;
+function setPanelOpen(device, open) {
+  byId(`${device}-panel`).hidden = !open;
+  byId(`${device}-toggle`).setAttribute("aria-expanded", String(open));
+}
+
+function canCommand(device) {
+  return statusLive && !commandPending && availableDevices.includes(device) &&
+    typeof hardwareState[device] === "boolean";
+}
+
+function updateDeviceButtons() {
+  for (const device of devices) {
+    byId(`${device}-connection`).disabled = !canCommand(device);
+  }
   for (const id of ["camera-apply", "camera-cooler-on", "camera-cooler-off"]) {
-    byId(id).disabled = disabled || !cameraConnected;
+    byId(id).disabled = !canCommand("camera") || !hardwareState.camera;
   }
+  const domeDisabled = !canCommand("dome") || !hardwareState.dome;
+  for (const button of domeActions) {
+    const positionCommand = ["home", "park"].includes(button.dataset.action);
+    button.disabled = domeDisabled || (positionCommand && domeSyncRunning);
+  }
+  byId("dome-sync").disabled = domeDisabled || (domeSyncRunning && !hardwareState.sync);
 }
 
-byId("camera-toggle").addEventListener("click", () => {
-  const panel = byId("camera-panel");
-  panel.hidden = !panel.hidden;
-  byId("camera-toggle").setAttribute("aria-expanded", String(!panel.hidden));
-});
+for (const device of devices) {
+  byId(`${device}-toggle`).addEventListener("click", () => {
+    const open = byId(`${device}-panel`).hidden;
+    for (const panel of devices) setPanelOpen(panel, panel === device && open);
+  });
+  byId(`${device}-connection`).addEventListener("click", () => {
+    sendDeviceCommand(device, {action: hardwareState[device] ? "disconnect" : "connect"});
+  });
+}
 
-byId("camera-connection").addEventListener("click", () => {
-  sendCameraCommand({action: cameraConnected ? "disconnect" : "connect"});
-});
-byId("camera-cooler-on").addEventListener("click", () => sendCameraCommand({action: "cooler_on"}));
-byId("camera-cooler-off").addEventListener("click", () => sendCameraCommand({action: "cooler_off"}));
+byId("camera-cooler-on").addEventListener("click", () => sendDeviceCommand("camera", {action: "cooler_on"}));
+byId("camera-cooler-off").addEventListener("click", () => sendDeviceCommand("camera", {action: "cooler_off"}));
 byId("camera-temperature").addEventListener("submit", (event) => {
   event.preventDefault();
   const input = byId("camera-setpoint");
   if (!byId("camera-apply").disabled && input.reportValidity()) {
-    sendCameraCommand({action: "setpoint", setpoint: input.valueAsNumber});
+    sendDeviceCommand("camera", {action: "setpoint", setpoint: input.valueAsNumber});
+  }
+});
+for (const button of domeActions) {
+  button.addEventListener("click", () => {
+    if (window.confirm(`${button.textContent}?`)) {
+      sendDeviceCommand("dome", {action: button.dataset.action});
+    }
+  });
+}
+byId("dome-sync").addEventListener("click", () => {
+  if (hardwareState.sync || window.confirm("Enable dome sync? The dome may move.")) {
+    sendDeviceCommand("dome", {action: hardwareState.sync ? "sync_off" : "sync_on"});
   }
 });
 
-async function sendCameraCommand(command) {
-  if (cameraPending || !cameraLive || !cameraControl) return;
-  const result = byId("camera-result");
+async function sendDeviceCommand(device, command) {
+  if (!canCommand(device)) return;
+  const result = byId(`${device}-result`);
   result.textContent = "Waiting for Spectro Capture…";
-  cameraPending = true;
-  updateCameraButtons();
+  commandPending = true;
+  updateDeviceButtons();
   try {
-    const response = await fetch("/api/camera", {
+    const response = await fetch(`/api/${device}`, {
       method: "POST",
       headers: {"Content-Type": "application/json"},
       body: JSON.stringify(command),
@@ -141,11 +180,11 @@ async function sendCameraCommand(command) {
     });
     result.textContent = (await response.json()).message;
   } catch {
-    result.textContent = "No command result received. Check camera status before trying again.";
+    result.textContent = "No command result received. Check device status before trying again.";
   } finally {
-    cameraPending = false;
-    cameraLive = false;
-    updateCameraButtons();
+    commandPending = false;
+    statusLive = false;
+    updateDeviceButtons();
   }
 }
 
@@ -161,15 +200,15 @@ async function refresh() {
     render(state);
     lastUpdate = state.updated;
     const stale = !lastUpdate || Date.now() - Date.parse(lastUpdate) > 10000;
-    cameraLive = !stale;
+    statusLive = !stale;
     byId("connection").textContent = stale
       ? `Waiting for desktop refresh · ${clock(lastUpdate)}`
-      : `${cameraControl ? "Camera controls enabled" : "Read-only"} · Updated ${clock(lastUpdate)}`;
+      : `${availableDevices.length ? "Hardware controls enabled" : "Read-only"} · Updated ${clock(lastUpdate)}`;
   } catch {
-    cameraLive = false;
+    statusLive = false;
     byId("connection").textContent = `Connection lost · Last update ${clock(lastUpdate)}`;
   } finally {
-    updateCameraButtons();
+    updateDeviceButtons();
     setTimeout(refresh, 2000);
   }
 }

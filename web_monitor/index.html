@@ -25,9 +25,17 @@
       <div>
         <dt>
           <span id="camera-label">Camera</span>
-          <button id="camera-toggle" type="button" aria-controls="camera-panel" aria-expanded="false" hidden>Camera</button>
+          <button id="camera-toggle" class="hardware-toggle" type="button" aria-controls="camera-panel" aria-expanded="false" hidden>Camera</button>
         </dt>
         <dd id="camera-state">—</dd>
+      </div>
+      <div>
+        <dt><span id="telescope-label">Telescope</span><button id="telescope-toggle" class="hardware-toggle" type="button" aria-controls="telescope-panel" aria-expanded="false" hidden>Telescope</button></dt>
+        <dd id="telescope-state">—</dd>
+      </div>
+      <div>
+        <dt><span id="dome-label">Dome</span><button id="dome-toggle" class="hardware-toggle" type="button" aria-controls="dome-panel" aria-expanded="false" hidden>Dome</button></dt>
+        <dd id="dome-state">—</dd>
       </div>
     </dl>
     <section id="camera-panel" class="hardware-panel" aria-label="Camera controls" hidden>
@@ -39,6 +47,24 @@
         <button id="camera-cooler-off" type="button" disabled>Cooler Off</button>
       </form>
       <p id="camera-result" role="status"></p>
+    </section>
+    <section id="telescope-panel" class="hardware-panel" aria-label="Telescope controls" hidden>
+      <button id="telescope-connection" type="button" disabled>Connect</button>
+      <p id="telescope-result" role="status"></p>
+    </section>
+    <section id="dome-panel" class="hardware-panel" aria-label="Dome controls" hidden>
+      <button id="dome-connection" type="button" disabled>Connect</button>
+      <div id="dome-operations" hidden>
+        <p id="dome-detail"></p>
+        <div class="dome-actions">
+          <button type="button" data-action="open">Open Shutter</button>
+          <button type="button" data-action="close">Close Shutter</button>
+          <button type="button" data-action="park">Park</button>
+          <button type="button" data-action="home">Home</button>
+          <button id="dome-sync" type="button">Enable Sync</button>
+        </div>
+      </div>
+      <p id="dome-result" role="status"></p>
     </section>
     <section class="activity" aria-labelledby="activity">
       <p id="mode"></p>

@@ -171,7 +171,7 @@ class SpectroscopyToolkit:
         if DomeTab:
             self.dome = DomeTab(notebook, self.context)
             notebook.add(self.dome, text="Dome")
-            self.context.dome = self.dome
+            self.context.dome_tab = self.dome
         else:
             print("Skipping Dome tab due to import error.")
 
@@ -214,14 +214,20 @@ if __name__ == "__main__":
         web_host = os.environ.get("SPECTRO_WEB_HOST")
         if web_host:
             try:
-                from web_monitor import CameraCommands, Monitor, start
+                from web_monitor import DeviceCommands, Monitor, start
                 monitor = Monitor()
                 setup = app.context.setup
-                commands = CameraCommands() if setup is not None else None
-                monitor.publish(camera_control=commands is not None)
+                dome_tab = app.context.dome_tab
+                handlers = {}
+                if setup is not None:
+                    handlers["camera"] = setup.run_web_camera_command
+                    handlers["telescope"] = setup.run_web_telescope_command
+                if dome_tab is not None:
+                    handlers["dome"] = dome_tab.run_web_dome_command
+                commands = DeviceCommands(handlers)
+                monitor.publish(device_controls=list(handlers))
                 web_server = start(monitor, web_host, commands=commands)
-                if commands is not None:
-                    commands.poll(root, setup)
+                commands.poll(root)
                 app.context.web_monitor = monitor
                 app.context.log(f"Web monitor listening at http://{web_host}:8765/")
             except Exception as error:

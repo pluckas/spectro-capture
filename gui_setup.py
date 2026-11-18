@@ -95,9 +95,7 @@ class SetupTab(ttk.Frame):
         return message
 
     def run_web_camera_command(self, action, setpoint):
-        tools = getattr(self.context, "tools", None)
-        tools_worker = getattr(tools, "thread", None)
-        if self.context.camera_work_active() or (tools_worker and tools_worker.is_alive()):
+        if self.context.camera_work_active():
             raise RuntimeError("Camera controls are unavailable while an acquisition is active.")
         if action == "connect":
             return self.connect_camera(from_browser=True)
@@ -375,21 +373,42 @@ class SetupTab(ttk.Frame):
         except Exception as e:
             self.context.log(f"Telescope chooser failed: {e}")
 
-    def connect_telescope(self):
-        if not self._telescope_progid:
-            messagebox.showerror("Error", "No telescope selected"); return
+    def run_web_telescope_command(self, action, _setpoint):
+        if self.context.camera_work_active():
+            raise RuntimeError("Telescope controls are unavailable while an acquisition is active.")
+        if action == "connect":
+            return self.connect_telescope(from_browser=True)
+        dome_tab = getattr(self.context, "dome_tab", None)
+        if dome_tab and (self.context.dome_sync_enabled or dome_tab.sync_running()):
+            raise RuntimeError("Turn off dome sync and wait for it to stop before disconnecting the telescope.")
+        telescope = self.context.telescope
+        if telescope and telescope.Connected and telescope.Slewing:
+            raise RuntimeError("Wait for the telescope to stop slewing before disconnecting.")
+        return self.disconnect_telescope(from_browser=True)
+
+    def connect_telescope(self, *, from_browser=False):
         try:
-            self.context.telescope = win32com.client.Dispatch(self._telescope_progid)
-            self.context.telescope.Connected = True
+            if not self._telescope_progid:
+                raise RuntimeError("Select a telescope driver in Setup on the Observatory PC.")
+            if self.context.telescope and self.context.telescope.Connected:
+                return "Telescope already connected."
+            telescope = win32com.client.Dispatch(self._telescope_progid)
+            telescope.Connected = True
+            if not telescope.Connected:
+                raise RuntimeError("The telescope driver did not report a connection.")
+            self.context.telescope = telescope
             self.tel_status.config(text="Telescope connected")
             self.connect_tel_btn.config(state="disabled")
             self.disconnect_tel_btn.config(state="normal")
             self.context.log("ASCOM telescope connected.")
+            return "Telescope connected."
         except Exception as e:
             self.context.log(f"Telescope connect failed: {e}")
+            if from_browser:
+                raise
             messagebox.showerror("Telescope", f"Connect failed:\n{e}")
 
-    def disconnect_telescope(self):
+    def disconnect_telescope(self, *, from_browser=False):
         try:
             if self.context.telescope:
                 self.context.telescope.Connected = False
@@ -398,8 +417,11 @@ class SetupTab(ttk.Frame):
             self.connect_tel_btn.config(state="normal")
             self.disconnect_tel_btn.config(state="disabled")
             self.context.log("ASCOM telescope disconnected.")
+            return "Telescope disconnected."
         except Exception as e:
             self.context.log(f"Telescope disconnect failed: {e}")
+            if from_browser:
+                raise
 
     # -----------------------
     # Binning

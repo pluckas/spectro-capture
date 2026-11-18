@@ -158,3 +158,16 @@ for the next time the cooler is turned on. Use **Cooler On** to start
 cooling at the saved setpoint, and **Cooler Off** to stop it. Camera commands are blocked
 during acquisition. Anyone who can reach the monitor can use its camera
 controls.
+
+#### Telescope and dome controls
+
+Click **Telescope** in the status strip to connect or disconnect the
+telescope configured in Windows Setup. Click **Dome** for shutter,
+position and sync status, and for Connect, Disconnect, Open Shutter,
+Close Shutter, Park, Home and Sync. The browser asks for confirmation
+before requesting movement. Use the desktop Dome tab for configuration
+and its existing Abort control.
+
+Browser telescope and dome commands are blocked during acquisition,
+including Close Shutter. Disable dome sync and let it stop before
+parking, homing, or disconnecting either device.

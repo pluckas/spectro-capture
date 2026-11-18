@@ -34,6 +34,7 @@ import time
 import win32com.client
 
 from dome_backend import DomeSyncManager, SHUTTER_STATUS
+from web_monitor import report
 
 
 class DomeTab(ttk.Frame):
@@ -41,6 +42,7 @@ class DomeTab(ttk.Frame):
         super().__init__(parent)
         self.context = context
         self.sync_manager = DomeSyncManager(self.log_message)
+        self._motion_lock = threading.Lock()
 
         # Load dome settings from shared config
         defaults = {
@@ -131,8 +133,10 @@ class DomeTab(ttk.Frame):
     # ------------------------------------------------------------
     # Dome connection
     # ------------------------------------------------------------
-    def connect_dome(self):
+    def connect_dome(self, *, from_browser=False):
         try:
+            if self.context.dome and self.context.dome.Connected:
+                return "Dome already connected."
             self.dome = win32com.client.Dispatch("MaxDome64.Dome")
             self.dome.Connected = True
     
@@ -145,6 +149,7 @@ class DomeTab(ttk.Frame):
             self.context.dome = self.dome
             self._update_button_states()
             self.log_message("Dome connected.")
+            return "Dome connected."
     
         except Exception as e:
             # Cleanup on failure
@@ -157,9 +162,11 @@ class DomeTab(ttk.Frame):
             self.context.dome = None
             self._update_button_states()
             self.log_message(f"Failed to connect dome: {e}")
+            if from_browser:
+                raise
             tk.messagebox.showerror("Dome Connection Error", str(e))
 
-    def disconnect_dome(self):
+    def disconnect_dome(self, *, from_browser=False):
         try:
             if hasattr(self, "dome") and self.dome:
                 self.dome.Connected = False
@@ -172,13 +179,64 @@ class DomeTab(ttk.Frame):
             self.context.dome = None
             self._update_button_states()
             self.log_message("Dome disconnected (sync disabled).")
+            return "Dome disconnected."
     
         except Exception as e:
             self.log_message(f"Failed to disconnect dome: {e}")
+            if from_browser:
+                raise
 
     # ------------------------------------------------------------
     # Sync control
     # ------------------------------------------------------------
+    def sync_running(self):
+        thread = self.sync_manager.thread
+        return bool(thread and thread.is_alive())
+
+    def run_web_dome_command(self, action, _setpoint):
+        if self.context.camera_work_active():
+            raise RuntimeError("Dome controls are unavailable while an acquisition is active.")
+        if action == "connect":
+            return self.connect_dome(from_browser=True)
+
+        dome = self.context.dome
+        if not dome or not dome.Connected:
+            raise RuntimeError("Dome is disconnected.")
+
+        sync_running = self.sync_running()
+        if action == "sync_off":
+            self.sync_var.set(False)
+            self.toggle_sync()
+            return "Dome sync stopping." if sync_running else "Dome sync is off."
+        if action == "sync_on" and self.sync_var.get() and sync_running:
+            return "Dome sync is already enabled."
+        if action in ("disconnect", "home", "park", "sync_on") and sync_running:
+            raise RuntimeError("Turn off dome sync and wait for it to stop first.")
+
+        if not self._motion_lock.acquire(blocking=False):
+            raise RuntimeError("A dome command is already in progress.")
+        try:
+            shutter = dome.ShutterStatus
+            if shutter in (2, 3) or dome.Slewing:
+                raise RuntimeError("Wait for dome or shutter movement to finish.")
+            if action == "disconnect":
+                return self.disconnect_dome(from_browser=True)
+            if action == "sync_on":
+                telescope = self.context.telescope
+                if not telescope or not telescope.Connected:
+                    raise RuntimeError("Connect the telescope before enabling dome sync.")
+                self.sync_var.set(True)
+                self.toggle_sync()
+                return "Dome sync start requested."
+            if action in ("open", "close"):
+                if shutter not in (0, 1):
+                    raise RuntimeError("Check the shutter state in the desktop Dome tab.")
+                if shutter == (0 if action == "open" else 1):
+                    return f"Shutter already {SHUTTER_STATUS[shutter].lower()}."
+            return self._send_motion(action)
+        finally:
+            self._motion_lock.release()
+
     def toggle_sync(self):
         """Handle Dome–Telescope sync checkbox toggle."""
         state = self.sync_var.get()
@@ -249,35 +307,60 @@ class DomeTab(ttk.Frame):
             state_tuple = (az, moving, status)
             if state_tuple != getattr(self, "_last_state", None):
                 self._last_state = state_tuple
-                if self.dome and self.dome.Connected:
+                if getattr(self, "dome", None) and self.dome.Connected:
                     self.log_message(f"Dome update: {az}, {moving}, {status}")
     
         except Exception as e:
             self.az_label.config(text="---")
             self.slew_label.config(text="---")
             self.shutter_label.config(text="---")
-    
+            az = moving = status = "---"
+
+        report(self.context, "publish", dome_status={
+            "azimuth": az, "motion": moving, "shutter": status,
+            "sync": self.sync_running(),
+        })
         self.after(self.flash_interval, self._update_status)
 
     # ------------------------------------------------------------
     # Threaded dome commands
     # ------------------------------------------------------------
-    def _threaded_command(self, func, name, delay_after=0):
+    def _send_motion(self, action, delay_after=0):
+        name, method = {
+            "home": ("Home", "FindHome"),
+            "park": ("Park", "Park"),
+            "abort": ("Abort", "AbortSlew"),
+            "open": ("Open Shutter", "OpenShutter"),
+            "close": ("Close Shutter", "CloseShutter"),
+        }[action]
+        getattr(self.dome, method)()
+        if delay_after:
+            time.sleep(delay_after)
+        message = f"{name} command sent."
+        self.log_message(message)
+        return message
+
+    def _threaded_command(self, action, delay_after=0):
         def run():
             try:
-                func()
-                if delay_after:
-                    time.sleep(delay_after)
-                self.log_message(f"{name} command sent.")
+                if action == "abort":
+                    self._send_motion(action)
+                else:
+                    if not self._motion_lock.acquire(blocking=False):
+                        raise RuntimeError("A dome command is already in progress.")
+                    try:
+                        self._send_motion(action, delay_after)
+                    finally:
+                        self._motion_lock.release()
             except Exception as e:
-                self.log_message(f"Error executing {name}: {e}")
+                self.log_message(f"Error executing dome {action}: {e}")
         threading.Thread(target=run, daemon=True).start()
 
-    def home(self): self._threaded_command(lambda: self.dome.FindHome(), "Home", 1)
-    def park(self): self._threaded_command(lambda: self.dome.Park(), "Park", 1)
-    def abort(self): self._threaded_command(lambda: self.dome.AbortSlew(), "Abort")
-    def open_shutter(self): self._threaded_command(lambda: self.dome.OpenShutter(), "Open Shutter")
-    def close_shutter(self): self._threaded_command(lambda: self.dome.CloseShutter(), "Close Shutter")
+    def home(self): self._threaded_command("home", 1)
+    def park(self): self._threaded_command("park", 1)
+    def abort(self): self._threaded_command("abort")
+    def open_shutter(self): self._threaded_command("open")
+    def close_shutter(self): self._threaded_command("close")
 
     # ------------------------------------------------------------
     # Settings window

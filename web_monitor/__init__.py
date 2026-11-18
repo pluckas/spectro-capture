@@ -116,39 +116,47 @@ def report(context, method, *args, **kwargs):
             print(f"Web monitor update failed: {error}")
 
 
-class CameraCommands:
+DEVICE_ACTIONS = {
+    "camera": ("connect", "disconnect", "setpoint", "cooler_on", "cooler_off"),
+    "telescope": ("connect", "disconnect"),
+    "dome": ("connect", "disconnect", "open", "close", "home", "park", "sync_on", "sync_off"),
+}
+
+
+class DeviceCommands:
     """Pass one browser request at a time to the desktop event loop."""
 
-    def __init__(self):
+    def __init__(self, handlers):
+        self.handlers = handlers
         self.lock = Lock()
         self.pending = None
 
-    def submit(self, action, setpoint):
+    def submit(self, device, action, setpoint):
         with self.lock:
             if self.pending is not None and not self.pending[0].done():
-                return 409, "A camera command is already pending."
+                return 409, "A hardware command is already pending."
             result = Future()
-            self.pending = (result, action, setpoint)
+            self.pending = (result, device, action, setpoint)
         try:
             return result.result(timeout=10)
         except TimeoutError:
             if result.cancel():
                 return 503, "Desktop did not respond. Command was cancelled."
-            return 504, "The result is pending. Check the camera status before trying again."
+            return 504, "The result is pending. Check the device status before trying again."
 
-    def poll(self, root, setup):
+    def poll(self, root):
         with self.lock:
             pending = self.pending
         if pending is not None:
-            result, action, setpoint = pending
+            result, device, action, setpoint = pending
             if not result.done() and result.set_running_or_notify_cancel():
                 try:
-                    message = setup.run_web_camera_command(action, setpoint)
+                    message = self.handlers[device](action, setpoint)
                 except Exception as error:
                     result.set_result((409, str(error)))
                 else:
                     result.set_result((200, message))
-        root.after(100, self.poll, root, setup)
+        root.after(100, self.poll, root)
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -169,7 +177,8 @@ class Handler(BaseHTTPRequestHandler):
         self.respond(200, content_type, body)
 
     def do_POST(self):
-        if self.path != "/api/camera" or self.commands is None:
+        prefix, _, device = self.path.rpartition("/")
+        if prefix != "/api" or self.commands is None or device not in self.commands.handlers:
             self.send_error(404)
             return
         if self.headers.get_content_type() != "application/json":
@@ -182,7 +191,7 @@ class Handler(BaseHTTPRequestHandler):
             self.connection.settimeout(3)
             request = json.loads(self.rfile.read(size))
             action = request["action"]
-            if action not in ("connect", "disconnect", "setpoint", "cooler_on", "cooler_off"):
+            if action not in DEVICE_ACTIONS[device]:
                 raise ValueError
             setpoint = None
             if action == "setpoint":
@@ -191,10 +200,10 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError
                 setpoint = float(value)
         except (KeyError, TypeError, ValueError, OverflowError, OSError):
-            self.respond_json(400, "Invalid camera command.")
+            self.respond_json(400, "Invalid hardware command.")
             return
 
-        status, message = self.commands.submit(action, setpoint)
+        status, message = self.commands.submit(device, action, setpoint)
         self.respond_json(status, message)
 
     def respond_json(self, status, message):

@@ -169,7 +169,9 @@ class AppContext:
 
     def camera_work_active(self):
         with self._camera_workers_lock:
-            return any(thread.is_alive() for thread in self._camera_workers)
+            workers_active = any(thread.is_alive() for thread in self._camera_workers)
+        tools_worker = getattr(self.tools, "thread", None)
+        return workers_active or bool(tools_worker and tools_worker.is_alive())
 
     def set_log_callback(self, callback):
         """Register a function (usually from Status tab) to receive log messages."""

@@ -46,7 +46,7 @@ time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .6
   nav { display: flex; overflow-x: auto; margin-top: .4rem; white-space: nowrap; }
 }
 
-#camera-toggle {
+.hardware-toggle {
   padding: 0;
   border: 0;
   background: transparent;
@@ -69,5 +69,7 @@ time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .6
 .hardware-panel input, .hardware-panel button { font: inherit; padding: .3rem .55rem; }
 .hardware-panel form { flex-wrap: wrap; }
 #camera-setpoint { width: 6rem; }
-#camera-result { flex-basis: 100%; }
-#camera-result:empty { display: none; }
+.hardware-panel > [role="status"] { flex-basis: 100%; }
+.hardware-panel > [role="status"]:empty { display: none; }
+
+.dome-actions { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .4rem; }
