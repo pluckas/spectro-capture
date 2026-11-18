@@ -58,25 +58,7 @@ function render(state) {
     state.plan.every((row, i) => Object.keys(row).every((key) => row[key] === run.rows[i][key]));
   const rows = run?.running || samePlan ? run.rows : state.plan;
   byId("targets").textContent = run?.running ? "Active batch targets" : "Targets";
-  byId("rows").replaceChildren(...rows.map((row, index) => {
-    const tr = document.createElement("tr");
-    const active = run?.running && run.active === index;
-    if (active) tr.classList.add("active");
-    const reference = row.reference && row.reference_seconds && row.reference_frames
-      ? `${row.reference} · ${row.reference_frames} × ${row.reference_seconds} s` : row.reference;
-    tr.append(...[row.target, row.start_ut || "—", `${row.seconds} s`, row.frames,
-      row.calibration ? "Yes" : "No", reference || "—",
-      active ? "Active" : row.outcome ?? (row.enabled ? "Enabled" : "Disabled"),
-    ].map((value) => element("td", value)));
-    return tr;
-  }));
-  if (!rows.length) {
-    const cell = element("td", "No batch targets loaded");
-    cell.colSpan = 7;
-    const row = document.createElement("tr");
-    row.append(cell);
-    byId("rows").append(row);
-  }
+  renderTargets(rows, run, state.target_edits ?? []);
 
   byId("events").replaceChildren(...state.events.slice().reverse().map((event) => {
     const item = document.createElement("li");
@@ -85,6 +67,84 @@ function render(state) {
     item.append(time, document.createTextNode(event.message));
     return item;
   }));
+}
+
+let targetTableKey;
+
+function renderTargets(rows, run, edits) {
+  const editable = availableDevices.includes("batch") && !batchRunning && !run?.running;
+  const key = JSON.stringify([rows, editable ? edits : null, run?.running, run?.active]);
+  if (key === targetTableKey) return;
+  targetTableKey = key;
+  const table = byId("rows");
+  table.replaceChildren(...rows.map((row, index) => {
+    const tr = document.createElement("tr");
+    const active = run?.running && run.active === index;
+    if (active) tr.classList.add("active");
+    const reference = row.reference && row.reference_seconds && row.reference_frames
+      ? `${row.reference} · ${row.reference_frames} × ${row.reference_seconds} s` : row.reference;
+    const edit = editable ? edits[index] : null;
+    tr.append(element("td", row.target),
+      targetField(row, edit, "start_ut", "Start (UT)", row.start_ut || "—"),
+      targetField(row, edit, "seconds", "Exposure (s)", `${row.seconds} s`),
+      targetField(row, edit, "frames", "Frames", row.frames),
+      targetField(row, edit, "calibration", "Calibration", row.calibration ? "Yes" : "No"),
+      targetField(row, edit, "enabled", "Enabled", row.enabled ? "Yes" : "No"),
+      element("td", reference || "—"),
+      element("td", active ? "Active" : row.outcome ?? "—"));
+    return tr;
+  }));
+  if (!rows.length) {
+    const cell = element("td", "No batch targets loaded");
+    cell.colSpan = 8;
+    const row = document.createElement("tr");
+    row.append(cell);
+    table.append(row);
+  }
+}
+
+function targetField(row, edit, field, label, display) {
+  const cell = element("td", display);
+  if (!edit) return cell;
+  const commit = (value) => sendDeviceCommand("batch",
+    {action: "edit_target", edit: {...edit, field, value}}, "batch-csv-result");
+  const control = typeof row[field] === "boolean" ? document.createElement("input") : element("button", display);
+  control.className = "target-control";
+  control.setAttribute("aria-label", `${row.target}: ${label}`);
+  if (typeof row[field] === "boolean") {
+    control.type = "checkbox";
+    control.checked = row[field];
+    control.addEventListener("change", () => {
+      const value = control.checked;
+      control.checked = row[field];
+      commit(value);
+    });
+  } else {
+    control.type = "button";
+    control.addEventListener("click", () => {
+      const input = document.createElement("input");
+      input.className = "target-control target-editor";
+      input.setAttribute("aria-label", `${row.target}: ${label}`);
+      input.value = row[field];
+      if (field === "start_ut") input.placeholder = "HH:MM";
+      if (field === "seconds") input.inputMode = "decimal";
+      if (field === "frames") input.inputMode = "numeric";
+      input.addEventListener("blur", () => input.replaceWith(control));
+      input.addEventListener("keydown", (event) => {
+        if (!["Enter", "Escape"].includes(event.key)) return;
+        event.preventDefault();
+        const value = input.value.trim();
+        input.replaceWith(control);
+        control.focus();
+        if (event.key === "Enter" && value !== row[field]) commit(value);
+      });
+      control.replaceWith(input);
+      input.focus();
+      input.select();
+    });
+  }
+  cell.replaceChildren(control);
+  return cell;
 }
 
 const devices = ["camera", "telescope", "dome"];
@@ -167,6 +227,9 @@ function canCommand(device) {
 }
 
 function updateDeviceButtons() {
+  for (const control of byId("rows").querySelectorAll(".target-control")) {
+    control.disabled = !canCommand("batch") || batchRunning || acquisitionBusy;
+  }
   byId("batch-run").disabled = !canCommand("batch") || batchRunning || acquisitionBusy || enabledTargets === 0;
   byId("batch-load-csv").disabled = !canCommand("batch") || batchRunning || acquisitionBusy;
   byId("batch-download-csv").disabled = !canCommand("batch") || targetCount === 0;

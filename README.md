@@ -194,3 +194,8 @@ import replaces the current desktop and browser target list. **Download
 CSV** exports that list with RA, Dec, and reference settings included.
 Per-target start times are stored as UT, including in desktop-compatible
 exports whose column header reads `Start Time (Local)`.
+
+
+When the batch is idle, click an exposure, frame count, or UT start time
+in the Targets table to edit it. Enter saves the value and Escape cancels.
+Use the Calibration and Enabled checkboxes to update those options.

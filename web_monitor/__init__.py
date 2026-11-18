@@ -117,7 +117,7 @@ def report(context, method, *args, **kwargs):
 
 
 DEVICE_ACTIONS = {
-    "batch": ("run", "stop", "schedule", "load_csv", "download_csv"),
+    "batch": ("run", "stop", "schedule", "load_csv", "download_csv", "edit_target"),
     "camera": ("connect", "disconnect", "setpoint", "binning", "cooler_on", "cooler_off"),
     "telescope": ("connect", "disconnect"),
     "dome": ("connect", "disconnect", "open", "close", "home", "park", "abort", "sync_on", "sync_off"),
@@ -194,7 +194,7 @@ class Handler(BaseHTTPRequestHandler):
             self.connection.settimeout(3)
             request = json.loads(self.rfile.read(size))
             action = request["action"]
-            if action not in DEVICE_ACTIONS[device] or (size > 256 and action != "load_csv"):
+            if action not in DEVICE_ACTIONS[device] or (size > 1024 and action != "load_csv"):
                 raise ValueError
             value = None
             if action == "setpoint":
@@ -205,6 +205,10 @@ class Handler(BaseHTTPRequestHandler):
             elif action == "load_csv":
                 value = request["csv"]
                 if not isinstance(value, str) or "\x00" in value:
+                    raise ValueError
+            elif action == "edit_target":
+                value = request["edit"]
+                if not isinstance(value, dict):
                     raise ValueError
             elif action == "schedule":
                 value = request["options"]

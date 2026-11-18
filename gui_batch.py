@@ -21,6 +21,7 @@ Sequencer or Auto Capture internals.
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import csv, io, math, os, threading
+from hashlib import sha256
 from batch_runner import run_batch
 from web_monitor import describe_rows, report
 from utils import utc_hhmm_to_local_hhmm
@@ -584,7 +585,52 @@ class BatchTab(ttk.Frame):
             return self._load_web_batch_csv(value)
         if action == "download_csv":
             return self._download_web_batch_csv()
+        if action == "edit_target":
+            return self._edit_web_target(value)
         return self.stop_batch(from_browser=True)
+
+    @staticmethod
+    def _target_revision(row):
+        return sha256(repr(tuple(row)).encode("utf-8")).hexdigest()
+
+    def _edit_web_target(self, edit):
+        if self.batch_running or self.context.camera_work_active():
+            raise RuntimeError("Wait for acquisition to finish before editing targets.")
+        item, revision, field, value = (edit.get(key) for key in ("id", "revision", "field", "value"))
+        if not isinstance(item, str) or not item or not self.table.exists(item):
+            raise ValueError("This target is no longer in the list.")
+        row = self._full_row_values(item)
+        if revision != self._target_revision(row):
+            raise ValueError("This target changed in the desktop or another tab. Try again.")
+        columns = {"seconds": 3, "frames": 4, "calibration": 5, "enabled": 6, "start_ut": 7}
+        if not isinstance(field, str) or field not in columns:
+            raise ValueError("Invalid target field.")
+        if field in ("calibration", "enabled"):
+            if type(value) is not bool:
+                raise ValueError("Expected a checkbox value.")
+            value = "✓" if value else "✗"
+        elif field == "start_ut":
+            if value != "":
+                try:
+                    if datetime.strptime(value, "%H:%M").strftime("%H:%M") != value:
+                        raise ValueError
+                except (TypeError, ValueError):
+                    raise ValueError("Enter a start time as HH:MM UT, or leave it blank.") from None
+        else:
+            try:
+                number = float(value) if field == "seconds" else int(value)
+                if not isinstance(value, str) or number <= 0 or not math.isfinite(number):
+                    raise ValueError
+            except (TypeError, ValueError, OverflowError):
+                raise ValueError("Enter a positive exposure or a positive whole frame count.") from None
+        index = columns[field]
+        if value != row[index]:
+            values = list(self.table.item(item, "values"))
+            values[index - 2] = value
+            self.table.item(item, values=values)
+            report(self.context, "publish", run=None)
+            self._publish_batch_status()
+        return ""
 
     WEB_BATCH_CHECKBOXES = {
         "pre_calib": "pre_calib_var",
@@ -710,6 +756,8 @@ class BatchTab(ttk.Frame):
         if rows is None:
             rows = self._batch_rows()
         report(self.context, "publish", plan=describe_rows(rows),
+               target_edits=[{"id": item, "revision": self._target_revision(row)}
+                             for item, row in zip(self.table.get_children(), rows)],
                plan_mode="Hour angle" if self.smart_var.get() else "List order",
                batch_running=self.batch_running,
                batch_stopping=self.batch_running and self.context.stop_requested.is_set(),
