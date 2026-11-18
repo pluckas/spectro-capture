@@ -28,7 +28,6 @@ Key features:
 import sys
 import threading
 import json
-import base64
 import math
 import os
 import socket
@@ -244,35 +243,26 @@ class GuideTab(ttk.Frame):
                     raise TimeoutError("PHD2 did not return a snapshot.")
         return response.get("result")
 
-    def snapshot_guide_star(self):
+    def render_guide_zoom(self, pixels, centre, message):
         import numpy as np
         from PIL import Image, ImageDraw
 
-        try:
-            frame = self.guide_preview_call("get_star_image", [31])
-        except RuntimeError as error:
-            if "star" not in str(error).lower():
-                raise
-            report(self.context, "guide_star_frame", None, "No guide star selected.")
-            return
-
-        width, height = int(frame["width"]), int(frame["height"])
-        pixels = np.frombuffer(base64.b64decode(frame["pixels"], validate=True), dtype="<u2")
-        pixels = pixels.reshape(height, width).astype(np.float32)
+        height, width = pixels.shape
         low, high = np.percentile(pixels, (1, 99.5))
         scaled = np.clip((pixels - low) * (255 / max(high - low, 1)), 0, 255)
         zoom = 8
         image = Image.fromarray(scaled.astype(np.uint8)).resize(
             (width * zoom, height * zoom), Image.Resampling.NEAREST).convert("RGB")
-        x, y = ((value + 0.5) * zoom for value in frame["star_pos"])
+        x, y = ((value + 0.5) * zoom for value in centre)
         draw = ImageDraw.Draw(image)
         for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             draw.line((x + dx * 7, y + dy * 7, x + dx * 19, y + dy * 19), fill="#60efaa", width=2)
         output = BytesIO()
         image.save(output, format="PNG", compress_level=1)
-        report(self.context, "guide_star_frame", output.getvalue(), "")
+        report(self.context, "guide_star_frame", output.getvalue(), message)
 
     def snapshot_guide_field(self):
+        pixels = None
         try:
             import numpy as np
             from astropy.io import fits
@@ -299,9 +289,24 @@ class GuideTab(ttk.Frame):
             report(self.context, "publish", guide_snapshot_message=f"Guide snapshot failed: {error}")
         finally:
             try:
-                self.snapshot_guide_star()
+                if pixels is None:
+                    report(self.context, "guide_star_frame", None, "Waiting for a fibre-centred frame…")
+                elif self.guide_preview_call("get_use_subframes") is not False:
+                    report(self.context, "guide_star_frame", None, "Turn off PHD2 subframes to see the fibre-centred view.")
+                else:
+                    with open(LOCK_FILE) as file:
+                        position = json.load(file)
+                    x, y = float(position["x"]), float(position["y"])
+                    height, width = pixels.shape
+                    if not (0 <= x < width and 0 <= y < height):
+                        raise ValueError("Saved fibre position is outside the guide frame.")
+                    left, top = round(x) - 15, round(y) - 15
+                    crop = Image.fromarray(pixels).crop((left, top, left + 31, top + 31))
+                    self.render_guide_zoom(np.asarray(crop), (x - left, y - top), "Centred on saved fibre")
+            except FileNotFoundError:
+                report(self.context, "guide_star_frame", None, "Save a fibre position to show the zoom.")
             except Exception as error:
-                report(self.context, "guide_star_frame", None, f"Guide star preview unavailable: {error}")
+                report(self.context, "guide_star_frame", None, f"Fibre preview unavailable: {error}")
             finally:
                 self._snapshot_lock.release()
 

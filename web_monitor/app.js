@@ -538,7 +538,7 @@ function renderGuiding(state) {
     const source = `/api/guide-field/${state.guide_frame}`;
     if (guideImage.getAttribute("src") !== source) guideImage.src = source;
   }
-  byId("guide-star-status").textContent = state.guide_star_message ?? "Waiting for a guide star…";
+  byId("guide-star-status").textContent = state.guide_star_message ?? "Waiting for a fibre-centred frame…";
   if (!state.guide_star) {
     guideStarImage.hidden = true;
     guideStarImage.removeAttribute("src");
@@ -571,7 +571,8 @@ guideImage.addEventListener("error", () => { guideImage.hidden = true; });
 guideStarImage.addEventListener("load", () => { guideStarImage.hidden = false; });
 guideStarImage.addEventListener("error", () => { guideStarImage.hidden = true; });
 
-for (const button of guideControls.querySelectorAll("[data-guide-action]")) {
+const guideActionButtons = guidingPanel.querySelectorAll("[data-guide-action]");
+for (const button of guideActionButtons) {
   button.addEventListener("click", () => sendDeviceCommand("guiding", {action: button.dataset.guideAction}));
 }
 byId("guide-exposure").addEventListener("submit", (event) => {
@@ -621,7 +622,7 @@ calibrationForm.addEventListener("submit", async (event) => {
 });
 
 function updateDeviceButtons() {
-  for (const button of guideControls.querySelectorAll("button")) {
+  for (const button of [...guideActionButtons, ...guideControls.querySelectorAll('button[type="submit"]')]) {
     button.disabled = !canCommand("guiding") || guideBusy || batchRunning;
   }
   const telescopeReady = canCommand("telescope") && hardwareState.telescope && !batchRunning;

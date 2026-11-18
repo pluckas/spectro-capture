@@ -251,9 +251,12 @@
               <img id="guide-field-image" alt="Latest PHD2 guide-camera snapshot" hidden>
             </section>
             <section aria-labelledby="guide-star-title">
-              <h2 id="guide-star-title">Guide Star</h2>
-              <p id="guide-star-status" role="status">Waiting for a guide star…</p>
-              <img id="guide-star-image" alt="Zoomed PHD2 guide star with centroid crosshair" hidden>
+              <h2 id="guide-star-title">Fibre Zoom</h2>
+              <div class="batch-commands">
+                <button type="button" data-guide-action="restore" disabled>Move to Fibre</button>
+              </div>
+              <p id="guide-star-status" role="status">Waiting for a fibre-centred frame…</p>
+              <img id="guide-star-image" alt="Zoomed PHD2 guide-camera view with crosshair" hidden>
             </section>
           </div>
           <div id="guide-controls" hidden>
@@ -276,7 +279,6 @@
               <button type="submit" disabled>Save Fibre Position</button>
             </form>
             <div class="batch-commands">
-              <button type="button" data-guide-action="restore" disabled>Move to Fibre</button>
               <div role="group" aria-label="Nudge lock position">
                 <button type="button" data-guide-action="left" aria-label="Nudge left" disabled>←</button>
                 <button type="button" data-guide-action="up" aria-label="Nudge up" disabled>↑</button>
