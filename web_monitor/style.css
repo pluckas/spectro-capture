@@ -169,3 +169,9 @@ button.target-control:disabled { color: inherit; cursor: default; }
   max-height: 70vh;
   object-fit: contain;
 }
+.guide-previews { display: grid; grid-template-columns: 2fr 1fr; gap: .75rem; }
+.guide-previews section { padding: .75rem; border: 1px solid var(--border); border-radius: .4rem; }
+.guide-previews h2 { font-size: 1rem; margin: 0; }
+@media (max-width: 600px) {
+  .guide-previews { grid-template-columns: 1fr; }
+}

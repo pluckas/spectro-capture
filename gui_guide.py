@@ -28,11 +28,13 @@ Key features:
 import sys
 import threading
 import json
+import math
 import os
 import socket
 import tkinter as tk
 from tkinter import ttk, scrolledtext
 from pathlib import Path
+from web_monitor import report
 
 # --- Local phd2client dependency path ---
 base = Path(__file__).resolve().parent
@@ -143,26 +145,10 @@ class GuideTab(ttk.Frame):
         adjust_frame = ttk.LabelFrame(self, text="Adjust Lock Position", padding=10)
         adjust_frame.grid(row=7, column=0, columnspan=2, padx=5, pady=5, sticky="ew")
 
-        def nudge(dx, dy):
-            if not self.ensure_connection():
-                return
-            try:
-                lock = self.phd.GetLockPosition()
-                if isinstance(lock, (list, tuple)) and len(lock) == 2:
-                    x, y = lock
-                else:
-                    self.log("Could not get valid lock position.")
-                    return
-                new_x, new_y = x + dx, y + dy
-                self.phd.SetLockPosition(new_x, new_y)
-                self.log(f"Nudged lock position to ({new_x:.1f}, {new_y:.1f})")
-            except Exception as e:
-                self.log(f"Nudge error: {e}")
-
-        ttk.Button(adjust_frame, text="↑", width=4, command=lambda: nudge(0, -1)).grid(row=0, column=1, pady=(0, 2))
-        ttk.Button(adjust_frame, text="←", width=4, command=lambda: nudge(-1, 0)).grid(row=1, column=0, padx=(15, 5))
-        ttk.Button(adjust_frame, text="→", width=4, command=lambda: nudge(1, 0)).grid(row=1, column=2, padx=(5, 15))
-        ttk.Button(adjust_frame, text="↓", width=4, command=lambda: nudge(0, 1)).grid(row=2, column=1, pady=(2, 0))
+        ttk.Button(adjust_frame, text="↑", width=4, command=lambda: self.nudge(0, -1)).grid(row=0, column=1, pady=(0, 2))
+        ttk.Button(adjust_frame, text="←", width=4, command=lambda: self.nudge(-1, 0)).grid(row=1, column=0, padx=(15, 5))
+        ttk.Button(adjust_frame, text="→", width=4, command=lambda: self.nudge(1, 0)).grid(row=1, column=2, padx=(5, 15))
+        ttk.Button(adjust_frame, text="↓", width=4, command=lambda: self.nudge(0, 1)).grid(row=2, column=1, pady=(2, 0))
         ttk.Label(adjust_frame, text="").grid(row=1, column=1)
 
         # --- Status Text Box ---
@@ -178,7 +164,57 @@ class GuideTab(ttk.Frame):
     # -------------------------------------------------
     #  Utility Functions
     # -------------------------------------------------
+    def nudge(self, dx, dy):
+        if not self.ensure_connection():
+            return
+        try:
+            lock = self.phd.GetLockPosition()
+            if isinstance(lock, (list, tuple)) and len(lock) == 2:
+                x, y = lock
+            else:
+                self.log("Could not get valid lock position.")
+                return
+            new_x, new_y = x + dx, y + dy
+            self.phd.SetLockPosition(new_x, new_y)
+            self.log(f"Nudged lock position to ({new_x:.1f}, {new_y:.1f})")
+        except Exception as e:
+            self.log(f"Nudge error: {e}")
+
+
+    def run_web_guide_command(self, action, options):
+        batch = getattr(self.context, "batch_tab", None)
+        if self._busy or getattr(batch, "batch_running", False):
+            raise RuntimeError("Wait for the current guide command or batch to finish.")
+        commands = {
+            "status": self.get_status, "loop": self.start_loop, "find_star": self.find_star,
+            "guide": self.start_guiding, "pause": self.pause_guiding, "resume": self.unpause_guiding,
+            "restore": self.restore_lock, "stop": self.stop_guiding,
+        }
+        nudges = {"up": (0, -1), "down": (0, 1), "left": (-1, 0), "right": (1, 0)}
+        if action in nudges:
+            command = lambda: self.nudge(*nudges[action])
+        elif action == "exposure":
+            seconds = options.get("seconds")
+            if type(seconds) not in (int, float) or seconds not in map(float, self.exposure_values):
+                raise ValueError("Select a supported guide exposure.")
+            self.exposure_var.set(next(value for value in self.exposure_values if float(value) == seconds))
+            command = lambda: self.set_exposure(seconds)
+        elif action == "save_fibre":
+            x, y = options.get("x"), options.get("y")
+            if not all(type(value) in (int, float) and math.isfinite(value) and value >= 0 for value in (x, y)):
+                raise ValueError("Enter valid fibre X and Y coordinates.")
+            self.fibre_x_entry.delete(0, "end")
+            self.fibre_x_entry.insert(0, str(x))
+            self.fibre_y_entry.delete(0, "end")
+            self.fibre_y_entry.insert(0, str(y))
+            command = self.save_fibre_position
+        else:
+            command = commands[action]
+        self.run_threaded(command)
+        return "Guide command queued."
+
     def log(self, msg):
+        report(self.context, "publish", guide_message=msg)
         self.status.config(state="normal")
         self.status.insert("end", msg + "\n")
         self.status.see("end")
@@ -187,6 +223,7 @@ class GuideTab(ttk.Frame):
 
     def set_busy(self, busy: bool):
         self._busy = busy
+        report(self.context, "publish", guide_busy=busy)
         for b in self.buttons:
             b.state(["disabled" if busy else "!disabled"])
         self.update_idletasks()
@@ -194,13 +231,13 @@ class GuideTab(ttk.Frame):
     def run_threaded(self, func):
         if self._busy:
             return
+        self.set_busy(True)
         t = threading.Thread(target=self._safe_wrapper, args=(func,))
         t.daemon = True
         t.start()
 
     def _safe_wrapper(self, func):
         try:
-            self.set_busy(True)
             func()
         except Exception as e:
             self.log(f"Unexpected error: {e}")
@@ -411,11 +448,11 @@ class GuideTab(ttk.Frame):
     def on_exposure_change(self, event=None):
         self.run_threaded(self.set_exposure)
 
-    def set_exposure(self):
+    def set_exposure(self, seconds=None):
         if not self.ensure_connection():
             return
         try:
-            exp_time = float(self.exposure_var.get())
+            exp_time = float(self.exposure_var.get()) if seconds is None else seconds
             ms = int(exp_time * 1000)
             self.phd.Call("set_exposure", [ms])
 
@@ -437,6 +474,8 @@ class GuideTab(ttk.Frame):
     def refresh_status_header(self):
         """Update the shared Sequencer/Batch/Guide status bar."""
         try:
+            if getattr(self.context, "web_monitor", None) is not None:
+                report(self.context, "publish", guide_fibre=[self.fibre_x_entry.get(), self.fibre_y_entry.get()])
             from status_bar import update_status_header
             self._sync_blink = update_status_header(
                 self.context,

@@ -147,6 +147,8 @@ def report(context, method, *args, **kwargs):
 
 
 DEVICE_ACTIONS = {
+    "guiding": ("status", "loop", "find_star", "guide", "pause", "resume", "restore", "stop",
+                "up", "down", "left", "right", "exposure", "save_fibre"),
     "lamps": ("tungsten", "thorium", "off"),
     "calibration": ("save_settings", "start_calibration"),
     "batch": ("run", "stop", "schedule", "load_csv", "download_csv", "edit_target", "save_target_identity", "save_target_reference", "remove_target", "clear_targets", "move_target"),
@@ -257,7 +259,8 @@ class Handler(BaseHTTPRequestHandler):
                 value = request["revision"]
                 if not isinstance(value, str):
                     raise ValueError
-            elif action in ("schedule", "save_settings", "start_calibration", "slew_name", "slew_coords"):
+            elif action in ("schedule", "save_settings", "start_calibration", "slew_name", "slew_coords",
+                            "exposure", "save_fibre"):
                 value = request["options"]
                 if not isinstance(value, dict):
                     raise ValueError

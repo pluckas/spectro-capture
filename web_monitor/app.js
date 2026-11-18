@@ -105,6 +105,7 @@ function render(state) {
 
   const run = state.run;
   batchRunning = state.batch_running === true;
+  renderGuiding(state);
   batchStopping = state.batch_stopping === true;
   acquisitionBusy = state.acquisition_busy === true;
   telescopeSlewActive = state.telescope_slew_active === true;
@@ -518,6 +519,40 @@ function canCommand(device) {
     (!devices.includes(device) || typeof hardwareState[device] === "boolean");
 }
 
+const guideControls = byId("guide-controls");
+const guideSeconds = byId("guide-seconds");
+let guideBusy = false;
+let guideFibreInitialized = false;
+
+function renderGuiding(state) {
+  guideControls.hidden = !availableDevices.includes("guiding");
+  guideBusy = state.guide_busy === true;
+  byId("guide-message").textContent = state.guide_message ?? "";
+  if (!guideSeconds.options.length && state.guide_exposure_choices) {
+    guideSeconds.replaceChildren(new Option("Select exposure", ""), ...state.guide_exposure_choices.map(
+      (value) => new Option(value, value)));
+  }
+  if (!guideFibreInitialized && state.guide_fibre) {
+    [byId("guide-fibre-x").value, byId("guide-fibre-y").value] = state.guide_fibre;
+    guideFibreInitialized = true;
+  }
+}
+
+for (const button of guideControls.querySelectorAll("[data-guide-action]")) {
+  button.addEventListener("click", () => sendDeviceCommand("guiding", {action: button.dataset.guideAction}));
+}
+byId("guide-exposure").addEventListener("submit", (event) => {
+  event.preventDefault();
+  sendDeviceCommand("guiding", {action: "exposure", options: {seconds: Number(guideSeconds.value)}});
+});
+byId("guide-fibre").addEventListener("submit", (event) => {
+  event.preventDefault();
+  sendDeviceCommand("guiding", {action: "save_fibre", options: {
+    x: byId("guide-fibre-x").valueAsNumber,
+    y: byId("guide-fibre-y").valueAsNumber,
+  }});
+});
+
 const calibrationForm = byId("calibration-form");
 const calibrationFields = [...calibrationForm.querySelectorAll('input[type="number"]')];
 const calibrationName = byId("calibration-name");
@@ -553,6 +588,9 @@ calibrationForm.addEventListener("submit", async (event) => {
 });
 
 function updateDeviceButtons() {
+  for (const button of guideControls.querySelectorAll("button")) {
+    button.disabled = !canCommand("guiding") || guideBusy || batchRunning;
+  }
   const telescopeReady = canCommand("telescope") && hardwareState.telescope && !batchRunning;
   byId("slew-start").disabled = !telescopeReady || telescopeSlewActive || acquisitionBusy;
   byId("slew-stop").disabled = !telescopeReady;

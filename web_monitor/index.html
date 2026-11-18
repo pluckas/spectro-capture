@@ -17,7 +17,8 @@
       <button type="button" data-open-panel="fits-panel" aria-controls="fits-panel">FITS Viewer</button>
       <span>Sequencer</span>
       <button id="telescope-menu" type="button" aria-controls="telescope-panel" aria-expanded="false" disabled>Telescope</button>
-      <span>Guiding</span><span>Focus</span>
+      <button type="button" data-open-panel="guiding-panel" aria-controls="guiding-panel">Guiding</button>
+      <span>Focus</span>
       <button type="button" data-open-panel="calibration-panel" aria-controls="calibration-panel">Calibration Settings</button>
       <span>Setup</span>
       <button id="theme-open" type="button" aria-haspopup="dialog">Theme</button>
@@ -238,6 +239,52 @@
               <div id="calibration-result" role="status"></div>
             </fieldset>
           </form>
+        </div>
+      </details>
+      <details id="guiding-panel" class="workspace-panel">
+        <summary>Guiding</summary>
+        <div class="workspace-panel-body">
+          <div class="guide-previews">
+            <section aria-labelledby="guide-field-title">
+              <h2 id="guide-field-title">Guide Field</h2>
+              <p>Full guide-camera preview pending.</p>
+            </section>
+            <section aria-labelledby="guide-star-title">
+              <h2 id="guide-star-title">Guide Star</h2>
+              <p>Zoomed preview pending.</p>
+            </section>
+          </div>
+          <div id="guide-controls" hidden>
+            <div class="batch-commands">
+              <button type="button" data-guide-action="status" disabled>Status</button>
+              <button type="button" data-guide-action="loop" disabled>Loop</button>
+              <button type="button" data-guide-action="find_star" disabled>Find Star</button>
+              <button type="button" data-guide-action="guide" disabled>Guide</button>
+              <button type="button" data-guide-action="pause" disabled>Pause</button>
+              <button type="button" data-guide-action="resume" disabled>Resume</button>
+              <button type="button" data-guide-action="stop" disabled>Stop</button>
+            </div>
+            <form id="guide-exposure" class="batch-commands">
+              <label>Exposure (s) <select id="guide-seconds" required></select></label>
+              <button type="submit" disabled>Apply Exposure</button>
+            </form>
+            <form id="guide-fibre" class="batch-commands">
+              <label>Fibre X <input id="guide-fibre-x" type="number" min="0" step="any" required></label>
+              <label>Fibre Y <input id="guide-fibre-y" type="number" min="0" step="any" required></label>
+              <button type="submit" disabled>Save Fibre Position</button>
+            </form>
+            <div class="batch-commands">
+              <button type="button" data-guide-action="restore" disabled>Move to Fibre</button>
+              <div role="group" aria-label="Nudge lock position">
+                <button type="button" data-guide-action="left" aria-label="Nudge left" disabled>←</button>
+                <button type="button" data-guide-action="up" aria-label="Nudge up" disabled>↑</button>
+                <button type="button" data-guide-action="down" aria-label="Nudge down" disabled>↓</button>
+                <button type="button" data-guide-action="right" aria-label="Nudge right" disabled>→</button>
+              </div>
+            </div>
+            <p id="guiding-result" role="status"></p>
+            <p id="guide-message" role="status"></p>
+          </div>
         </div>
       </details>
       <details id="fits-panel" class="workspace-panel">

@@ -807,6 +807,8 @@ class BatchTab(ttk.Frame):
             messagebox.showinfo("Batch", str(error))
 
     def _start_batch(self):
+        if getattr(getattr(self.context, "guider", None), "_busy", False):
+            raise RuntimeError("Wait for the current guide command to finish.")
         targets = getattr(self.context, "targets", None)
         if targets and targets.manual_slew_active():
             raise RuntimeError("Wait for the manual telescope slew to finish.")
