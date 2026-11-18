@@ -532,12 +532,16 @@ class BatchTab(ttk.Frame):
                 continue
             if label == "Reference" and not row[8].strip():
                 raise ValueError("Reference name is required when reference exposure or frames are supplied.")
-            try:
-                duration = float(seconds)
-                if not math.isfinite(duration) or duration <= 0 or int(frames) <= 0:
-                    raise ValueError
-            except ValueError:
-                raise ValueError(f"{label} needs a positive exposure and a positive whole frame count.") from None
+            self._validate_exposure_frames(label, seconds, frames)
+
+    @staticmethod
+    def _validate_exposure_frames(label, seconds, frames):
+        try:
+            duration = float(seconds)
+            if not math.isfinite(duration) or duration <= 0 or int(frames) <= 0:
+                raise ValueError
+        except ValueError:
+            raise ValueError(f"{label} needs a positive exposure and a positive whole frame count.") from None
 
     @staticmethod
     def _validate_target_identity(name, ra, dec):
@@ -615,6 +619,8 @@ class BatchTab(ttk.Frame):
             return ""
         if action == "save_target_identity":
             return self._save_web_target_identity(value)
+        if action == "save_target_reference":
+            return self._save_web_target_reference(value)
         if action == "edit_target":
             return self._edit_web_target(value)
         return self.stop_batch(from_browser=True)
@@ -657,6 +663,29 @@ class BatchTab(ttk.Frame):
         self._row_coords[item] = (ra, dec)
         report(self.context, "publish", run=None)
         self._publish_batch_status()
+        return ""
+
+    def _save_web_target_reference(self, edit):
+        self._require_target_list_idle()
+        item, row = self._check_target_revision(edit)
+        reference = edit.get("reference", False)
+        if reference is None:
+            fields = ("", "", "")
+        else:
+            if not isinstance(reference, dict):
+                raise ValueError("Enter a reference star name, exposure and frame count.")
+            values = tuple(reference.get(field) for field in ("name", "seconds", "frames"))
+            if not all(isinstance(value, str) and "\x00" not in value for value in values):
+                raise ValueError("Enter a reference star name, exposure and frame count.")
+            fields = tuple(value.strip() for value in values)
+            if not fields[0]:
+                raise ValueError("Reference star name is required.")
+            self._validate_exposure_frames("Reference", fields[1], fields[2])
+
+        if fields != row[8:]:
+            self.table.item(item, values=(row[0], *row[3:8], *fields))
+            report(self.context, "publish", run=None)
+            self._publish_batch_status()
         return ""
 
     def _edit_web_target(self, edit):

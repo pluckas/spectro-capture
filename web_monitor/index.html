@@ -132,7 +132,22 @@
               <button type="submit">Save Target</button>
               <button type="button" data-cancel>Cancel</button>
               <button type="button" data-remove hidden>Remove</button>
-              <p role="status" id="target-identity-result"></p>
+              <p role="status" class="target-edit-result" id="target-identity-result"></p>
+            </form>
+          </td>
+        </tr>
+      </template>
+      <template id="target-reference-template">
+        <tr class="target-identity-row">
+          <td colspan="8">
+            <form class="target-identity-form" aria-label="Reference star">
+              <label>Star name <input name="name" maxlength="120" required></label>
+              <label>Exposure (s) <input name="seconds" type="number" min="0" step="any" required></label>
+              <label>Frames <input name="frames" type="number" min="1" step="1" required></label>
+              <button type="submit">Save Reference</button>
+              <button type="button" data-cancel>Cancel</button>
+              <button type="button" data-remove hidden>Remove Reference</button>
+              <p role="status" class="target-edit-result" id="target-reference-result"></p>
             </form>
           </td>
         </tr>

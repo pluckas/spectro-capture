@@ -96,13 +96,24 @@ function renderTargets(rows, run, edits) {
       trigger.addEventListener("click", () => openTargetEditor(edit, row.target, tr));
       name.replaceChildren(trigger);
     }
+    const referenceCell = element("td", reference || "—");
+    if (edit) {
+      const trigger = element("button", reference || "Add reference");
+      trigger.type = "button";
+      trigger.className = "target-control";
+      trigger.setAttribute("aria-label", `Edit reference for ${row.target}`);
+      trigger.addEventListener("click", () => openTargetEditor(edit, row.target, tr, {
+        name: row.reference ?? "", seconds: row.reference_seconds ?? "", frames: row.reference_frames ?? "",
+      }, trigger));
+      referenceCell.replaceChildren(trigger);
+    }
     tr.append(name,
       targetField(row, edit, "start_ut", "Start (UT)", row.start_ut || "—"),
       targetField(row, edit, "seconds", "Exposure (s)", `${row.seconds} s`),
       targetField(row, edit, "frames", "Frames", row.frames),
       targetField(row, edit, "calibration", "Calibration", row.calibration ? "Yes" : "No"),
       targetField(row, edit, "enabled", "Enabled", row.enabled ? "Yes" : "No"),
-      element("td", reference || "—"),
+      referenceCell,
       element("td", active ? "Active" : row.outcome ?? "—"));
     return tr;
   }));
@@ -132,37 +143,37 @@ function closeTargetEditor() {
   activeTargetEditor = null;
 }
 
-function openTargetEditor(edit = {}, name = "", targetRow = null) {
+function openTargetEditor(edit = {}, name = "", targetRow = null, reference = null, trigger = null) {
   closeTargetEditor();
-  const row = byId("target-identity-template").content.firstElementChild.cloneNode(true);
+  const kind = reference ? "reference" : "identity";
+  const resultId = `target-${kind}-result`;
+  const row = byId(`target-${kind}-template`).content.firstElementChild.cloneNode(true);
   const form = row.querySelector("form");
-  const nameInput = form.elements.namedItem("name");
-  const raInput = form.elements.namedItem("ra");
-  const decInput = form.elements.namedItem("dec");
-  nameInput.value = name;
-  raInput.value = edit.ra ?? "";
-  decInput.value = edit.dec ?? "";
+  const values = reference ?? {name, ra: edit.ra ?? "", dec: edit.dec ?? ""};
+  for (const [field, value] of Object.entries(values)) {
+    form.elements.namedItem(field).value = value;
+  }
   activeTargetEditor = {row, edit};
   if (targetRow) targetRow.after(row);
   else byId("rows").append(row);
   const cancel = () => {
     closeTargetEditor();
     updateDeviceButtons();
-    (targetRow?.querySelector("button") ?? byId("batch-add-target")).focus();
+    (trigger ?? targetRow?.querySelector("button") ?? byId("batch-add-target")).focus();
   };
+  const target = edit.id ? {id: edit.id, revision: edit.revision} : {};
   form.querySelector("[data-cancel]").addEventListener("click", cancel);
   const remove = form.querySelector("[data-remove]");
-  if (edit.id) {
+  if (reference ? Object.values(reference).some(Boolean) : edit.id) {
     remove.hidden = false;
     remove.addEventListener("click", async () => {
-      if (!window.confirm(`Remove ${name} from the batch?`)) return;
-      const removed = await sendDeviceCommand("batch", {
-        action: "remove_target", edit: {id: edit.id, revision: edit.revision},
-      }, "target-identity-result");
-      if (removed && activeTargetEditor?.row === row) {
-        closeTargetEditor();
-        updateDeviceButtons();
-      }
+      const message = reference ? `Remove the reference from ${name}?` : `Remove ${name} from the batch?`;
+      if (!window.confirm(message)) return;
+      const command = reference
+        ? {action: "save_target_reference", edit: {...target, reference: null}}
+        : {action: "remove_target", edit: target};
+      const removed = await sendDeviceCommand("batch", command, resultId);
+      if (removed && activeTargetEditor?.row === row) cancel();
     });
   }
   form.addEventListener("keydown", (event) => {
@@ -174,14 +185,15 @@ function openTargetEditor(edit = {}, name = "", targetRow = null) {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (form.querySelector('[type="submit"]').disabled) return;
-    const identity = {name: nameInput.value, ra: raInput.value, dec: decInput.value};
-    if (edit.id) Object.assign(identity, {id: edit.id, revision: edit.revision});
-    const saved = await sendDeviceCommand("batch", {action: "save_target_identity", edit: identity},
-      "target-identity-result");
+    const fields = Object.fromEntries(new FormData(form));
+    const command = reference
+      ? {action: "save_target_reference", edit: {...target, reference: fields}}
+      : {action: "save_target_identity", edit: {...target, ...fields}};
+    const saved = await sendDeviceCommand("batch", command, resultId);
     if (saved && activeTargetEditor?.row === row) cancel();
   });
   updateDeviceButtons();
-  nameInput.focus();
+  form.elements.namedItem("name").focus();
 }
 
 function targetField(row, edit, field, label, display) {

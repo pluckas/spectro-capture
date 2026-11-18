@@ -102,5 +102,5 @@ button.target-control:disabled { color: inherit; cursor: default; }
 .target-identity-form input, .target-identity-form button { font: inherit; }
 .target-identity-form input { width: 8rem; }
 .target-identity-form input[name="name"] { width: 12rem; }
-#target-identity-result { flex-basis: 100%; }
-#target-identity-result:empty { display: none; }
+.target-edit-result { flex-basis: 100%; }
+.target-edit-result:empty { display: none; }
