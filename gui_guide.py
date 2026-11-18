@@ -28,6 +28,7 @@ Key features:
 import sys
 import threading
 import json
+import base64
 import math
 import os
 import socket
@@ -220,31 +221,64 @@ class GuideTab(ttk.Frame):
         self.run_threaded(command)
         return "Guide command queued."
 
+    def guide_preview_call(self, method, params=None):
+        request = {"jsonrpc": "2.0", "method": method, "id": 1}
+        if params is not None:
+            request["params"] = params
+        # A dedicated read-only connection keeps snapshot replies separate from guide commands.
+        with socket.create_connection((self.host, 4400), timeout=3) as client:
+            client.sendall((json.dumps(request) + "\r\n").encode())
+            deadline = time.monotonic() + 5
+            with client.makefile("rb") as replies:
+                while time.monotonic() < deadline:
+                    client.settimeout(max(0.001, deadline - time.monotonic()))
+                    line = replies.readline()
+                    if not line:
+                        raise ConnectionError("PHD2 closed the snapshot connection.")
+                    response = json.loads(line)
+                    if response.get("id") == 1:
+                        if "error" in response:
+                            raise RuntimeError(response["error"]["message"])
+                        break
+                else:
+                    raise TimeoutError("PHD2 did not return a snapshot.")
+        return response.get("result")
+
+    def snapshot_guide_star(self):
+        import numpy as np
+        from PIL import Image, ImageDraw
+
+        try:
+            frame = self.guide_preview_call("get_star_image", [31])
+        except RuntimeError as error:
+            if "star" not in str(error).lower():
+                raise
+            report(self.context, "guide_star_frame", None, "No guide star selected.")
+            return
+
+        width, height = int(frame["width"]), int(frame["height"])
+        pixels = np.frombuffer(base64.b64decode(frame["pixels"], validate=True), dtype="<u2")
+        pixels = pixels.reshape(height, width).astype(np.float32)
+        low, high = np.percentile(pixels, (1, 99.5))
+        scaled = np.clip((pixels - low) * (255 / max(high - low, 1)), 0, 255)
+        zoom = 8
+        image = Image.fromarray(scaled.astype(np.uint8)).resize(
+            (width * zoom, height * zoom), Image.Resampling.NEAREST).convert("RGB")
+        x, y = ((value + 0.5) * zoom for value in frame["star_pos"])
+        draw = ImageDraw.Draw(image)
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            draw.line((x + dx * 7, y + dy * 7, x + dx * 19, y + dy * 19), fill="#60efaa", width=2)
+        output = BytesIO()
+        image.save(output, format="PNG", compress_level=1)
+        report(self.context, "guide_star_frame", output.getvalue(), "")
+
     def snapshot_guide_field(self):
         try:
             import numpy as np
             from astropy.io import fits
             from PIL import Image
 
-            request = {"jsonrpc": "2.0", "method": "save_image", "id": 1}
-            # A dedicated read-only connection keeps snapshot replies separate from guide commands.
-            with socket.create_connection((self.host, 4400), timeout=3) as client:
-                client.sendall((json.dumps(request) + "\r\n").encode())
-                deadline = time.monotonic() + 5
-                with client.makefile("rb") as replies:
-                    while time.monotonic() < deadline:
-                        client.settimeout(max(0.001, deadline - time.monotonic()))
-                        line = replies.readline()
-                        if not line:
-                            raise ConnectionError("PHD2 closed the snapshot connection.")
-                        response = json.loads(line)
-                        if response.get("id") == 1:
-                            if "error" in response:
-                                raise RuntimeError(response["error"]["message"])
-                            break
-                    else:
-                        raise TimeoutError("PHD2 did not return a snapshot.")
-            result = response.get("result")
+            result = self.guide_preview_call("save_image")
             filename = result.get("filename") if isinstance(result, dict) else None
             if not isinstance(filename, str) or not Path(filename).is_absolute():
                 raise RuntimeError("PHD2 did not return an absolute snapshot filename.")
@@ -264,7 +298,12 @@ class GuideTab(ttk.Frame):
         except Exception as error:
             report(self.context, "publish", guide_snapshot_message=f"Guide snapshot failed: {error}")
         finally:
-            self._snapshot_lock.release()
+            try:
+                self.snapshot_guide_star()
+            except Exception as error:
+                report(self.context, "guide_star_frame", None, f"Guide star preview unavailable: {error}")
+            finally:
+                self._snapshot_lock.release()
 
     def log(self, msg):
         report(self.context, "publish", guide_message=msg)

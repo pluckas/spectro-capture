@@ -522,6 +522,7 @@ function canCommand(device) {
 const guideControls = byId("guide-controls");
 const guideSeconds = byId("guide-seconds");
 const guideImage = byId("guide-field-image");
+const guideStarImage = byId("guide-star-image");
 const guidingPanel = byId("guiding-panel");
 const guideRefreshMs = 1000;
 let nextGuideRefresh = 0;
@@ -536,6 +537,14 @@ function renderGuiding(state) {
   if (guidingPanel.open && state.guide_frame) {
     const source = `/api/guide-field/${state.guide_frame}`;
     if (guideImage.getAttribute("src") !== source) guideImage.src = source;
+  }
+  byId("guide-star-status").textContent = state.guide_star_message ?? "Waiting for a guide star…";
+  if (!state.guide_star) {
+    guideStarImage.hidden = true;
+    guideStarImage.removeAttribute("src");
+  } else if (guidingPanel.open) {
+    const source = `/api/guide-star/${state.guide_star}`;
+    if (guideStarImage.getAttribute("src") !== source) guideStarImage.src = source;
   }
   if (guidingPanel.open && !document.hidden && availableDevices.includes("guiding")
       && !guideBusy && !commandPending && Date.now() >= nextGuideRefresh) {
@@ -559,6 +568,8 @@ function renderGuiding(state) {
 
 guideImage.addEventListener("load", () => { guideImage.hidden = false; });
 guideImage.addEventListener("error", () => { guideImage.hidden = true; });
+guideStarImage.addEventListener("load", () => { guideStarImage.hidden = false; });
+guideStarImage.addEventListener("error", () => { guideStarImage.hidden = true; });
 
 for (const button of guideControls.querySelectorAll("[data-guide-action]")) {
   button.addEventListener("click", () => sendDeviceCommand("guiding", {action: button.dataset.guideAction}));

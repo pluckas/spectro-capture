@@ -172,7 +172,8 @@ button.target-control:disabled { color: inherit; cursor: default; }
 .guide-previews { display: grid; grid-template-columns: 2fr 1fr; gap: .75rem; }
 .guide-previews section { padding: .75rem; border: 1px solid var(--border); border-radius: .4rem; }
 .guide-previews h2 { font-size: 1rem; margin: 0; }
-#guide-field-image { display: block; max-width: 100%; height: auto; margin-top: .75rem; }
+#guide-field-image, #guide-star-image { display: block; max-width: 100%; height: auto; margin-top: .75rem; }
+#guide-star-status:empty { display: none; }
 @media (max-width: 600px) {
   .guide-previews { grid-template-columns: 1fr; }
 }

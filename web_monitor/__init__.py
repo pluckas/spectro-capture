@@ -21,6 +21,17 @@ class Monitor:
         self._viewer_pixels = None
         self._viewer_png = None
         self._guide_png = None
+        self._guide_star_png = None
+
+    def guide_star_frame(self, png, message):
+        with self.lock:
+            self.state["guide_star"] = uuid4().hex if png else None
+            self.state["guide_star_message"] = message
+            self._guide_star_png = png
+
+    def guide_star_png(self, version):
+        with self.lock:
+            return self._guide_star_png if self.state.get("guide_star") == version else None
 
     def guide_frame(self, png):
         with self.lock:
@@ -214,6 +225,12 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/api/status":
             content_type, body = "application/json", self.monitor.snapshot()
+        elif self.path.startswith("/api/guide-star/"):
+            body = self.monitor.guide_star_png(self.path.removeprefix("/api/guide-star/"))
+            if body is None:
+                self.send_error(404)
+                return
+            content_type = "image/png"
         elif self.path.startswith("/api/guide-field/"):
             body = self.monitor.guide_png(self.path.removeprefix("/api/guide-field/"))
             if body is None:
