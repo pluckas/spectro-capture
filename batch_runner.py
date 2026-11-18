@@ -55,6 +55,7 @@ from utils import (
 )
 
 from dome_backend import is_shutter_closed
+from web_monitor import report
 
 
 # --- ROI / ADAPTIVE EXPOSURE CONFIG ----------------------------------------
@@ -216,6 +217,13 @@ def _check_dome_safety_or_abort(context, where: str) -> bool:
 def run_batch(context, rows):
     """Run multiple targets sequentially in a background thread."""
     def batch_worker():
+        try:
+            execute_batch()
+        finally:
+            report(context, "finish", context.stop_requested.is_set())
+
+    def execute_batch():
+        report(context, "begin", rows, bool(getattr(context, "batch_smart_mode", False)))
         total_rows = len(rows)
         context.log(f"🚀 Batch run started ({total_rows} rows)")
         
@@ -280,6 +288,7 @@ def run_batch(context, rows):
             if smart_mode:
                 start_utc = getattr(context, "batch_start_utc", None)
                 if start_utc:
+                    report(context, "activity", f"Waiting until {start_utc:%H:%M} UT to start batch")
                     context.log(
                         f"⏳ Scheduler enabled — waiting until {start_utc.strftime('%H:%M')} UTC to begin."
                     )
@@ -303,6 +312,7 @@ def run_batch(context, rows):
                     context.log("▶️ Scheduler start time reached — entering HA loop.")
             
             while True:
+                report(context, "activity", "Selecting target")
                 if _check_dome_safety_or_abort(context, "main batch loop"):
                     break
             
@@ -365,6 +375,8 @@ def run_batch(context, rows):
                     context.log("")
                     continue
 
+                report(context, "activity", f"Observing {target}", block["row_index"])
+
                 # Announce
                 done_count = sum(1 for b in blocks if b.get("completed"))
                 total_enabled = sum(1 for b in blocks if b.get("enabled"))
@@ -390,15 +402,18 @@ def run_batch(context, rows):
                     if context.stop_requested.is_set():
                         context.log("🛑 Stop requested during science target — aborting batch.")
                         break
+                    report(context, "processed", block["row_index"])
                     science_ok = True
                     
                     # --- Batch summary: mark success ---
                     batch_summary[target]["success"] = True
                 except Exception as e:
+                    report(context, "outcome", block["row_index"], "Failed")
                     context.log(f"❌ Science target failed for '{target}': {e}")
 
                 if science_ok and ref:
                 
+                    report(context, "activity", f"Observing reference {ref.get('name', '')}", block["row_index"])
                     # --- Batch summary: register reference ---
                     batch_summary[target]["refs"].append({
                         "name": ref.get("name", ""),
@@ -462,6 +477,7 @@ def run_batch(context, rows):
             # End while
 
         finally:
+            report(context, "activity", "Wrapping up batch")
             # Shutdown always happens when loop ends (last target done OR stop requested OR HA cutoff)
             context.log("🎯 Batch run complete.")
             
@@ -604,6 +620,7 @@ def _next_conventional_block(blocks, idx):
 
 
 def _mark_target_failed(context, block, reason: str):
+    report(context, "outcome", block["row_index"], "Failed")
     context.log(f"❌ Target '{block['name']}' failed: {reason}")
     block["completed"] = True
 
@@ -713,6 +730,7 @@ def _next_ha_block(context, blocks, ha_min, ha_max):
         MIN_BLOCK_SECONDS = 20 * 60
     
         if seconds_until <= MIN_BLOCK_SECONDS:
+            report(context, "activity", f"Waiting for timed target at {next_start_utc:%H:%M} UT")
             context.log(
                 f"⏰ Upcoming timed target '{timed_block['name']}' at "
                 f"{next_start_utc.strftime('%H:%M')} UTC — reserving timeline"
@@ -797,6 +815,7 @@ def _next_ha_block(context, blocks, ha_min, ha_max):
                 b["ra_hours"] = float(ra_h)
             except Exception as e:
                 context.log(f"⚠️ HA skip: could not resolve '{b['name']}': {e}")
+                report(context, "outcome", b["row_index"], "Skipped")
                 b["completed"] = True
                 continue
 
@@ -866,6 +885,7 @@ def _next_ha_block(context, blocks, ha_min, ha_max):
             _dist, _name, _ha = closest
             context.log(f"HA closest: {_name} = {_ha:.2f} h (window {ha_min:.2f} → {ha_max:.2f})")
     
+        report(context, "activity", "Waiting for hour-angle window")
         context.log("⏳ No targets within HA window — parking + waiting 120s then re-evaluating…")
     
         if not context.stop_requested.is_set():
@@ -897,6 +917,7 @@ def _next_ha_block(context, blocks, ha_min, ha_max):
         finish_time = now_utc + timedelta(seconds=duration)
     
         if finish_time >= next_start_utc:
+            report(context, "activity", f"Waiting for timed target at {next_start_utc:%H:%M} UT")
             context.log(
                 f"⏰ Skipping '{candidate['name']}' — would overlap timed target at "
                 f"{next_start_utc.strftime('%H:%M')} UTC"
@@ -936,6 +957,7 @@ def _wait_until_target_start_utc(context, hhmm_ut, target_name):
             context.log(f"⏩ Start time {hhmm_ut} UT already passed — running '{target_name}' now.")
             return True
 
+        report(context, "activity", f"Waiting until {hhmm_ut} UT for {target_name}")
         context.log(f"⏳ Waiting until {hhmm_ut} UT before starting '{target_name}'...")
         
         # Park telescope while waiting for conventional start time
@@ -995,6 +1017,7 @@ def _maybe_park_for_idle_gap_before_next_scheduled(context, blocks, next_idx):
         if idle_seconds <= 120:
             return
 
+        report(context, "activity", f"Waiting for next target at {next_start} UT")
         context.log(f"⏳ Idle gap before next target is {idle_seconds/60:.1f} min — parking telescope…")
 
         try:
@@ -1127,6 +1150,7 @@ def run_single_target(context, target_name, exp_s, frames, include_calibs=True, 
         guide = getattr(context, "guider", None)
 
         if not seq:
+            report(context, "science_failure", "Failed")
             context.log("Sequencer tab not available — aborting.")
             return
 
@@ -1180,6 +1204,7 @@ def run_single_target(context, target_name, exp_s, frames, include_calibs=True, 
                 context.log("✅ Scheduler pre-first-target calibration complete.")
                 context._scheduler_precal_done = True
             except Exception as e:
+                report(context, "science_failure", "Failed")
                 context.log(f"❌ Scheduler pre-calibration failed — aborting batch: {e}")
                 return
         
@@ -1221,6 +1246,7 @@ def run_single_target(context, target_name, exp_s, frames, include_calibs=True, 
             guiding_ok = False
         
         if not guiding_ok:
+            report(context, "science_failure", "Skipped")
             context.log(f"❌ Guiding failed for {target_name} — skipping science imaging.")
             try:
                 stop_guiding(context)
@@ -1251,6 +1277,7 @@ def run_single_target(context, target_name, exp_s, frames, include_calibs=True, 
                     context.log("🛑 Stop requested — waiting for sequencer to halt...")
                 time.sleep(5)
         except Exception as e:
+            report(context, "science_failure", "Failed")
             context.log(f"Target run failed: {e}")
 
         # --------------------------------------------------

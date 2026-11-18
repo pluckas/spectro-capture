@@ -26,6 +26,8 @@ Key features:
 - Handles safe error recovery and PyInstaller runtime compatibility
 """
 
+import os
+
 import ttkbootstrap as tb
 from ttkbootstrap import ttk
 
@@ -207,6 +209,19 @@ if __name__ == "__main__":
         # --- Build the main GUI ---
         app = SpectroscopyToolkit(root)
 
+        # The monitor is enabled for this launch only.
+        web_server = None
+        web_host = os.environ.get("SPECTRO_WEB_HOST")
+        if web_host:
+            try:
+                from web_monitor import Monitor, start
+                monitor = Monitor()
+                web_server = start(monitor, web_host)
+                app.context.web_monitor = monitor
+                app.context.log(f"Web monitor listening at http://{web_host}:8765/")
+            except Exception as error:
+                app.context.log(f"Could not start web monitor: {error}")
+
         # --- Save geometry on close ---
         def on_close():
             try:
@@ -226,6 +241,9 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"Could not save window geometry: {e}")
             finally:
+                if web_server is not None:
+                    web_server.shutdown()
+                    web_server.server_close()
                 root.destroy()
 
         root.protocol("WM_DELETE_WINDOW", on_close)

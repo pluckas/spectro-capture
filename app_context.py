@@ -29,6 +29,7 @@ import os
 import json
 from datetime import datetime
 import utils
+from web_monitor import report
 
 LOG_DIR = r"C:\Users\Luckas Observatory\OneDrive\astronomy\Spectroscopy\AutoCapture_Logs"
 
@@ -167,6 +168,7 @@ class AppContext:
     
     def log(self, msg):
         """Safely send a STATUS message to UI and nightly log."""
+        report(self, "log", msg)
         try:
             if self._log_callback:
                 self._log_callback(msg)

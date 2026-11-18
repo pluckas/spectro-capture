@@ -125,3 +125,25 @@ Spectro Capture is provided as Python source code rather than as a packaged inst
 This software is provided “as is”, without warranty of any kind.
 Use at your own risk. 
 Use of this software does not imply endorsement by the author of any derived work.
+
+### Browser monitor
+
+Start Spectro Capture from Windows Command Prompt with the monitor enabled.
+Set the host to the Observatory PC's LAN address:
+
+```bat
+set SPECTRO_WEB_HOST=192.168.20.10
+python main.py
+```
+
+Open <http://192.168.20.10:8765/> on a Mac or iPad on the observatory LAN.
+Use `127.0.0.1` as the host to test from the Observatory PC itself.
+The monitor is read-only. Use it on the observatory LAN and keep TCP port
+8765 off the public internet. Starting normally with the variable unset
+runs the desktop application on its own. To unset it in the same Command
+Prompt, run `set SPECTRO_WEB_HOST=`.
+
+The monitor shows the desktop's batch plan, the active run, camera exposure
+progress and the recent Status log. A **Processed** row means the batch
+worker reached the end of the science target step. Check the Status log
+and output folder for frame-save results.

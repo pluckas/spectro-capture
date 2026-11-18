@@ -20,3 +20,8 @@ archived/
 # Exclude focus-related scripts
 gui_focus.py
 focus_control.py
+
+# Browser monitor assets
+!web_monitor/index.html
+!web_monitor/style.css
+!web_monitor/app.js

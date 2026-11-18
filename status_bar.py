@@ -18,6 +18,7 @@ exposure output.
 
 import tkinter as tk
 from tkinter import ttk
+from web_monitor import report, utc_now
 
 
 # ---------------------------------------------------------------
@@ -141,6 +142,9 @@ def update_status_header(context, widgets, sync_blink):
         # -------------------------
         # Cooler (yellow until at temp)
         # -------------------------
+        cooler_on = None
+        target = None
+        t = None
         if cam_connected:
             cooler_on = bool(safe_get(cam, "CoolerOn", False))
             if cooler_on:
@@ -173,7 +177,8 @@ def update_status_header(context, widgets, sync_blink):
         # -------------------------
         # Dome Sync (with flashing while dome moves)
         # -------------------------
-        if dome_connected and safe_get(dome, "Slewing", False):
+        dome_slewing = dome_connected and safe_get(dome, "Slewing", False)
+        if dome_slewing:
             sync_blink = not sync_blink
             widgets["sync_dot"].config(foreground="yellow" if sync_blink else "black")
         else:
@@ -204,6 +209,18 @@ def update_status_header(context, widgets, sync_blink):
             foreground="yellow" if safe_get(context, "thor_on", False) else "black"
         )
         # =============================================
+
+        if getattr(context, "web_monitor", None) is not None:
+            report(context, "publish", updated=utc_now(), hardware={
+                "camera": cam_connected, "telescope": tel_connected, "dome": dome_connected,
+                "sync": sync, "slewing": bool(dome_slewing),
+                "temperature": float(t_str) if t_str != "--" and t_str not in ("nan", "inf", "-inf") else None,
+                "cooler": cooler_on,
+                "setpoint": target if isinstance(target, (float, int)) and abs(target) < float("inf") else None,
+                "binning": safe_get(context, "current_binning"),
+                "tungsten": bool(safe_get(context, "tung_on", False)),
+                "thorium": bool(safe_get(context, "thor_on", False)),
+            })
 
     except Exception:
         # Transient ASCOM/COM errors during aborts should not stop future refreshes.
@@ -249,6 +266,8 @@ def update_capture_status(
         )
 
         if batch_running:
+            report(context, "exposure", label=label, index=index, total=total,
+                   elapsed=elapsed, seconds=float(exposure))
             # --- Batch run active → update ONLY the Batch tab ---
             if batch and hasattr(batch, "status_lbl"):
                 batch.status_lbl.after(

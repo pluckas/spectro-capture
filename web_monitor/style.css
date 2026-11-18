@@ -1,0 +1,47 @@
+:root {
+  color-scheme: dark;
+  font: 16px/1.5 system-ui, sans-serif;
+  background: #111621;
+  color: #e5ebf5;
+  --muted: #a7b5ca;
+  --border: #303b50;
+  --accent: #8fceff;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; display: grid; grid-template-columns: 13rem minmax(0, 1fr); }
+aside {
+  position: sticky; top: 0; align-self: start; min-height: 100vh;
+  padding: 1.5rem 1rem; background: #191f2d; border-right: 1px solid var(--border);
+}
+nav { display: grid; gap: .25rem; margin-top: 1.5rem; }
+nav > * { padding: .35rem .65rem; }
+nav span { color: var(--muted); }
+nav a { color: var(--accent); background: #253650; border-radius: .35rem; }
+main { width: 100%; max-width: 85rem; padding: 1.5rem clamp(1rem, 3vw, 2.5rem); }
+header { display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap; }
+h1, h2, p { margin: 0; }
+h1 { font-size: 1.7rem; }
+h2 { font-size: 1.12rem; }
+#connection, #mode { color: var(--muted); font-size: .85rem; }
+#hardware { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; border-block: 1px solid var(--border); padding: .65rem 0; }
+dt { color: var(--muted); font-size: .8rem; }
+dd { margin: 0; }
+.activity { background: #1b2638; border: 1px solid var(--border); border-radius: .5rem; padding: 1rem; }
+.activity h2 { font-size: 1.4rem; }
+progress { width: min(100%, 26rem); accent-color: var(--accent); }
+section { margin-block: 1.25rem; }
+.table-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+th, td { text-align: left; padding: .55rem .65rem; border-bottom: 1px solid var(--border); }
+th { color: var(--muted); white-space: nowrap; }
+td:first-child { font-weight: 600; }
+tr.active { background: #243a54; color: var(--accent); }
+ol { list-style: none; padding: 0; margin: .5rem 0; font-size: .9rem; max-height: 19rem; overflow: auto; }
+li { padding: .27rem 0; overflow-wrap: anywhere; }
+time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .65rem; }
+@media (max-width: 850px) {
+  body { display: block; }
+  aside { position: static; min-height: auto; padding: .75rem 1rem; border-right: 0; border-bottom: 1px solid var(--border); }
+  nav { display: flex; overflow-x: auto; margin-top: .4rem; white-space: nowrap; }
+}

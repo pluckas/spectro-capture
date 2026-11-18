@@ -22,6 +22,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import csv, os, threading
 from batch_runner import run_batch
+from web_monitor import describe_rows, report
 from utils import utc_hhmm_to_local_hhmm
 from datetime import datetime, timezone
 
@@ -570,6 +571,7 @@ class BatchTab(ttk.Frame):
         self.stop_requested = True
         if hasattr(self.context, "stop_requested"):
             self.context.stop_requested.set()
+        report(self.context, "stopping")
         self.status_lbl.config(text="Stopping batch…")
         self.context.log("Batch stop requested.")
 
@@ -598,6 +600,11 @@ class BatchTab(ttk.Frame):
                 self.indicators,
                 self._sync_blink
             )
+
+            if getattr(self.context, "web_monitor", None) is not None:
+                rows = [self._full_row_values(item) for item in self.table.get_children()]
+                report(self.context, "publish", plan=describe_rows(rows),
+                       plan_mode="Hour angle" if self.smart_var.get() else "List order")
 
             if self.batch_running:
                 if self.context.stop_requested.is_set():
