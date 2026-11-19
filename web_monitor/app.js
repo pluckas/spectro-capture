@@ -514,9 +514,9 @@ function renderDevices(state) {
   const lampsOn = h.tungsten || h.thorium;
   const lampsOff = h.tungsten === false && h.thorium === false;
   renderHardwareState("lamps", lampsOn ? true : lampsOff ? false : null, () => {
-    if (h.tungsten && h.thorium) return "W + Th";
-    if (h.tungsten) return "W";
-    if (h.thorium) return "Th";
+    if (h.tungsten && h.thorium) return "Tungsten + Thorium";
+    if (h.tungsten) return "Tungsten";
+    if (h.thorium) return "Thorium";
     return lampsOff ? "Off" : "—";
   });
   for (const button of lampActions) {
