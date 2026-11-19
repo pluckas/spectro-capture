@@ -26,6 +26,7 @@ Key features:
 """
 
 import os
+import math
 import shutil
 import datetime
 import subprocess
@@ -243,33 +244,28 @@ def lamp_off():
 # ----------------------------
 # Name resolver (Sesame → SIMBAD)
 # ----------------------------
-def resolve_target_simbad(target: str):
-    """
-    Resolve an object name to (RA_hours, Dec_degs).
-    1) Try Astropy's Sesame resolver (CDS), which returns a SkyCoord directly.
-    2) If that fails and astroquery is available, try Simbad().query_object.
-    Raises ValueError on failure.
-    """
-    try:
-        c = SkyCoord.from_name(target)
-        return c.ra.hour, c.dec.degree
-    except Exception as e1:
-        last_err = e1
+def _query_simbad_target(target: str, *, include_pm: bool = False):
+    """Fetch a catalog position and optionally its motion from Harvard SIMBAD."""
+    simbad = Simbad()
+    simbad.server = "simbad.harvard.edu"
+    if include_pm:
+        simbad.add_votable_fields("pmra", "pmdec")
+    result = simbad.query_object(target)
+    if result is None or len(result) == 0:
+        raise ValueError(f"Target '{target}' not found in SIMBAD.")
+    row = result[0]
+    ra, dec = row["ra"], row["dec"]
+    if any(getattr(value, "mask", False) or value is None for value in (ra, dec)):
+        raise ValueError(f"SIMBAD returned no coordinates for '{target}'.")
+    if not (math.isfinite(ra) and math.isfinite(dec)):
+        raise ValueError(f"SIMBAD returned invalid coordinates for '{target}'.")
+    return SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs"), row
 
-    try:
-        sim = Simbad()
-        sim.TIMEOUT = 30
-        res = sim.query_object(target)
-        if res is None or len(res) == 0:
-            raise ValueError(f"Target '{target}' not found in SIMBAD")
-        ra_col = 'RA' if 'RA' in res.colnames else 'ra'
-        dec_col = 'DEC' if 'DEC' in res.colnames else 'dec'
-        ra_str = res[ra_col][0]
-        dec_str = res[dec_col][0]
-        c = SkyCoord(str(ra_str), str(dec_str), unit=(u.hourangle, u.deg))
-        return c.ra.hour, c.dec.degree
-    except Exception as e2:
-        raise ValueError(f"SIMBAD resolution failed: {e1}, {e2}")
+
+def resolve_target_simbad(target: str):
+    """Resolve an object name to (RA_hours, Dec_degs)."""
+    coord, _ = _query_simbad_target(target)
+    return coord.ra.hour, coord.dec.degree
 
 # ----------------------------
 # Thread-safe logging helper
@@ -442,15 +438,12 @@ def resolve_target_simbad_pm(target_name: str):
     """Resolve via SIMBAD, retrieve pmRA/pmDec, and apply proper motion."""
     print(f"Resolving '{target_name}' via SIMBAD (with proper motion)...")
 
-    Simbad.add_votable_fields('pmra', 'pmdec')
-    result = Simbad.query_object(target_name)
-    if result is None or len(result) == 0:
-        raise ValueError(f"Target '{target_name}' not found in SIMBAD.")
-
-    pm_ra = float(result['pmra'][0]) if result['pmra'][0] is not None else 0.0
-    pm_dec = float(result['pmdec'][0]) if result['pmdec'][0] is not None else 0.0
-
-    c_j2000 = SkyCoord.from_name(target_name)
+    c_j2000, row = _query_simbad_target(target_name, include_pm=True)
+    pm_ra, pm_dec = (
+        float(value) if value is not None and not getattr(value, "mask", False)
+        and math.isfinite(value) else 0.0
+        for value in (row["pmra"], row["pmdec"])
+    )
     print(f"  → RA (J2000)  = {c_j2000.ra.hour:.6f} h")
     print(f"  → Dec (J2000) = {c_j2000.dec.degree:.6f} °")
     print(f"  → Proper motions (mas/yr): {pm_ra:.2f}, {pm_dec:.2f}")
