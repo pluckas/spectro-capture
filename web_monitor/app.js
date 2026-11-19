@@ -112,26 +112,21 @@ function render(state) {
     if (shutter === "Opening" || shutter === "Closing") shutterClass = "status-moving";
   }
   const status = [
-    ["Shutter", h.dome ? (shutter && shutter !== "---" ? shutter : "Unknown") : "—", shutterClass],
-    ["Dome sync", h.slewing ? "Dome moving" : h.dome ? onOff(h.sync) : "—",
+    ["shutter", h.dome ? (shutter && shutter !== "---" ? shutter : "Unknown") : "—", shutterClass],
+    ["dome-sync", h.slewing ? "Dome moving" : h.dome ? onOff(h.sync) : "—",
       h.dome && !h.slewing && h.sync === false ? "status-alert" : ""],
-    ["Cooler", h.cooler && h.setpoint != null ? `On · set ${h.setpoint} °C` : onOff(h.cooler),
+    ["cooler", h.cooler && h.setpoint != null ? `On · set ${h.setpoint} °C` : onOff(h.cooler),
       h.cooler === false ? "status-alert" : ""],
-    ["Temp", h.temperature == null ? "—" : `${h.temperature.toFixed(1)} °C`],
-    ["Power", h.cooler_power == null ? "—" : `${h.cooler_power.toFixed(0)}%`],
-    ["Binning", h.binning ?? "—"],
+    ["temperature", h.temperature == null ? "—" : `${h.temperature.toFixed(1)} °C`],
+    ["power", h.cooler_power == null ? "—" : `${h.cooler_power.toFixed(0)}%`],
+    ["binning", h.binning ?? "—"],
   ];
   renderDevices(state);
-  const hardware = byId("hardware");
-  for (const item of hardware.querySelectorAll(".hardware-reading")) item.remove();
-  byId("lamps-status").before(...status.map(([label, value, statusClass = ""]) => {
-    const item = document.createElement("div");
-    item.className = "hardware-reading";
-    const reading = element("dd", value);
+  for (const [id, value, statusClass = ""] of status) {
+    const reading = byId(`${id}-reading`);
+    reading.textContent = value;
     reading.className = statusClass;
-    item.append(element("dt", label), reading);
-    return item;
-  }));
+  }
 
   const run = state.run;
   batchRunning = state.batch_running === true;
