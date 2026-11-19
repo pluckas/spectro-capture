@@ -128,8 +128,17 @@ Use of this software does not imply endorsement by the author of any derived wor
 
 ### Browser monitor
 
-Start Spectro Capture from Windows Command Prompt with the monitor enabled.
-Set the host to the Observatory PC's LAN address:
+To start the web monitor automatically, add the following top-level setting
+to the Observatory PC's local `spectro_config.json` beside `main.py`:
+
+```json
+{
+  "web_host": "192.168.20.10"
+}
+```
+
+Keep all existing settings and start Spectro Capture as usual. For a
+one-session override, set the host in Windows Command Prompt:
 
 ```bat
 set SPECTRO_WEB_HOST=192.168.20.10
@@ -139,9 +148,9 @@ python main.py
 Open <http://192.168.20.10:8765/> on a Mac or iPad on the observatory LAN.
 Use `127.0.0.1` as the host to test from the Observatory PC itself.
 Use the monitor on your trusted observatory LAN and keep TCP port
-8765 off the public internet. Starting normally with the variable unset
-runs the desktop application on its own. To unset it in the same Command
-Prompt, run `set SPECTRO_WEB_HOST=`.
+8765 off the public internet. If neither the config setting nor the
+environment variable supplies a host, only the desktop app starts.
+Run `set SPECTRO_WEB_HOST=` to clear the override in that Command Prompt.
 
 The monitor shows the desktop's batch plan, the active run, camera exposure
 progress and the recent Status log. A **Processed** row means the batch

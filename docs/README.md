@@ -107,6 +107,23 @@ Example attribution:
 
 ---
 
+## SIMBAD lookups
+
+Spectro Capture tries the Harvard mirror, the IDIA mirror in South Africa, and
+the Strasbourg server in that order. To prefer a different server, add the
+optional top-level setting below to the existing `spectro_config.json` beside
+`main.py`, then restart Spectro Capture.
+
+```json
+{
+  "simbad_server": "simbad.idia.ac.za"
+}
+```
+
+Accepted hosts are `simbad.cfa.harvard.edu`, `simbad.idia.ac.za`, and
+`simbad.cds.unistra.fr`. A failed or empty lookup tries the remaining servers.
+“Open in SIMBAD” opens the preferred server in your browser.
+
 ## Project Status
 
 This project is under active development.

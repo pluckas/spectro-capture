@@ -82,6 +82,7 @@ class AppContext:
 
         # Configuration
         self.cfg = load_config()
+        utils.configure_simbad(self.cfg.get("simbad_server"))
         if "last_setpoint" not in self.cfg:
             self.cfg["last_setpoint"] = -5
         
