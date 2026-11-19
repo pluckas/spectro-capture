@@ -12,6 +12,10 @@
   --raised: #24231f;
   --selected: #373022;
   --accent: #e6c567;
+  --status-inactive: #7a7777;
+  --status-connected: #78d696;
+  --status-lamp-on: #f3cf57;
+  --status-alert: #ff8585;
 }
 
 :root[data-theme="red"] {
@@ -46,6 +50,10 @@
   --raised: #ffffff;
   --selected: #e5edf8;
   --accent: #234f8e;
+  --status-inactive: #696969;
+  --status-connected: #20753c;
+  --status-lamp-on: #806000;
+  --status-alert: #b4232d;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -56,7 +64,6 @@ aside {
 }
 nav { display: grid; gap: .25rem; margin-top: 1.5rem; }
 nav > * { padding: .35rem .65rem; }
-nav span { color: var(--muted); }
 nav button { font: inherit; text-align: left; color: var(--accent); border: 0; border-radius: .35rem; background: transparent; cursor: pointer; }
 nav button:hover { background: var(--selected); }
 .workspace-panel { margin-block: 1rem; border: 1px solid var(--border); border-radius: .5rem; }
@@ -81,6 +88,12 @@ h2 { font-size: 1.12rem; }
 #hardware { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; border-block: 1px solid var(--border); padding: .65rem 0; }
 dt { color: var(--muted); font-size: .8rem; }
 dd { margin: 0; }
+#hardware .status-alert { color: var(--status-alert); }
+#hardware .status-moving { color: var(--status-lamp-on); }
+#hardware dd[data-state="inactive"] { color: var(--status-inactive); }
+#hardware dd[data-state="active"] { color: var(--status-connected); }
+#hardware #lamps-state[data-state="active"] { color: var(--status-lamp-on); }
+#lamps-panel button[aria-pressed="true"] { outline: 1px solid var(--accent); outline-offset: -2px; }
 #activity { font-size: 1.4rem; }
 progress { width: min(100%, 26rem); accent-color: var(--accent); }
 section { margin-block: 1.25rem; }
@@ -121,6 +134,7 @@ time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .6
 .hardware-panel label, .hardware-panel form { display: inline-flex; align-items: center; gap: .5rem; }
 .hardware-panel input, .hardware-panel select, .hardware-panel button { font: inherit; padding: .3rem .55rem; }
 .hardware-panel form { flex-wrap: wrap; }
+#telescope-slew :is(#slew-ra, #slew-dec) { width: 8rem; }
 #camera-setpoint { width: 6rem; }
 .hardware-panel > [role="status"] { flex-basis: 100%; }
 .hardware-panel > [role="status"]:empty { display: none; }
@@ -137,11 +151,14 @@ time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .6
 #batch-schedule { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .85rem; padding-top: .6rem; }
 #batch-schedule label { display: inline-flex; align-items: center; gap: .35rem; }
 #batch-schedule input[type="number"] { width: 5rem; }
+#schedule-start { width: 5rem; }
 #batch-schedule input, #batch-schedule select { font: inherit; }
 
 .batch-option-group { margin: .75rem 0 0; border: 1px solid var(--border); border-radius: .4rem; }
 .batch-option-group legend { color: var(--muted); }
 .batch-option-group label { display: inline-block; margin: .2rem .9rem .2rem 0; }
+#batch-schedule label:has(input:disabled),
+.batch-option-group label:has(input:disabled) { opacity: .55; }
 
 .target-control { font: inherit; }
 button.target-control { padding: .1rem .3rem; border: 1px solid transparent; background: transparent; color: var(--accent); cursor: pointer; }

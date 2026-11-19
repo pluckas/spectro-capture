@@ -59,7 +59,27 @@ function element(tag, value) {
 const fitsPanel = byId("fits-panel");
 const fitsImage = byId("fits-image");
 const fitsStatus = byId("fits-status");
+const testProgress = byId("camera-test-progress");
 let viewerFrame;
+let testExposure;
+
+function updateTestProgress() {
+  if (!testExposure) return;
+  const {started, seconds, previousFrame} = testExposure;
+  const elapsed = (performance.now() - started) / 1000;
+  const frameReady = viewerFrame && viewerFrame.version !== previousFrame;
+  const result = byId("camera-test-status");
+  if (frameReady || elapsed >= seconds + 135) {
+    testExposure = undefined;
+    testProgress.hidden = true;
+    result.textContent = frameReady ? "" : "No new preview received. Check the activity log.";
+    updateDeviceButtons();
+    return;
+  }
+  testProgress.value = Math.min(99, 100 * elapsed / seconds);
+  if (elapsed >= seconds && !result.textContent) result.textContent = "Waiting for image…";
+  setTimeout(updateTestProgress, 100);
+}
 
 function renderViewer() {
   if (!fitsPanel.open || !viewerFrame) return;
@@ -86,22 +106,27 @@ function render(state) {
   renderViewer();
   const h = state.hardware;
   const shutter = state.dome_status?.shutter;
+  let shutterClass = "";
+  if (h.dome) {
+    if (shutter === "Closed") shutterClass = "status-alert";
+    if (shutter === "Opening" || shutter === "Closing") shutterClass = "status-moving";
+  }
   const status = [
-    ["Shutter", h.dome ? (shutter && shutter !== "---" ? shutter : "Unknown") : "—"],
-    ["Dome sync", h.slewing ? "Dome moving" : h.dome ? onOff(h.sync) : "—"],
-    ["Cooler", h.cooler && h.setpoint != null ? `On · set ${h.setpoint} °C` : onOff(h.cooler)],
-    ["CCD", h.temperature == null ? "—" : `${h.temperature.toFixed(1)} °C`],
-    ["Binning", h.binning ?? "—"],
+    ["shutter", h.dome ? (shutter && shutter !== "---" ? shutter : "Unknown") : "—", shutterClass],
+    ["dome-sync", h.slewing ? "Dome moving" : h.dome ? onOff(h.sync) : "—",
+      h.dome && !h.slewing && h.sync === false ? "status-alert" : ""],
+    ["cooler", h.cooler && h.setpoint != null ? `On · set ${h.setpoint} °C` : onOff(h.cooler),
+      h.cooler === false ? "status-alert" : ""],
+    ["temperature", h.temperature == null ? "—" : `${h.temperature.toFixed(1)} °C`],
+    ["power", h.cooler_power == null ? "—" : `${h.cooler_power.toFixed(0)}%`],
+    ["binning", h.binning ?? "—"],
   ];
   renderDevices(state);
-  const hardware = byId("hardware");
-  for (const item of hardware.querySelectorAll(".hardware-reading")) item.remove();
-  byId("tungsten-status").before(...status.map(([label, value]) => {
-    const item = document.createElement("div");
-    item.className = "hardware-reading";
-    item.append(element("dt", label), element("dd", value));
-    return item;
-  }));
+  for (const [id, value, statusClass = ""] of status) {
+    const reading = byId(`${id}-reading`);
+    reading.textContent = value;
+    reading.className = statusClass;
+  }
 
   const run = state.run;
   batchRunning = state.batch_running === true;
@@ -413,8 +438,6 @@ function targetField(row, edit, field, label, display) {
 }
 
 const devices = ["camera", "telescope", "dome"];
-const lampLabels = ["tungsten", "thorium"];
-const hardwarePanels = [...devices, "lamps"];
 const lampActions = byId("lamps-panel").querySelectorAll("[data-action]");
 let hardwareState = {};
 let availableDevices = [];
@@ -449,15 +472,16 @@ function renderSchedule() {
     if (document.activeElement !== input) input.value = value ?? "";
   }
   const start = byId("schedule-start");
-  const times = ["", ...batchSchedule.start_times];
-  if (!times.includes(batchSchedule.start_local)) times.push(batchSchedule.start_local);
-  if (Array.from(start.options, (option) => option.value).join() !== times.join()) {
-    start.replaceChildren(...times.map((time) => new Option(time || "No scheduled start", time)));
-  }
-  start.value = batchSchedule.start_local;
+  if (document.activeElement !== start) start.value = batchSchedule.start_local;
 }
 const domeOperations = byId("dome-operations");
 const domeActions = domeOperations.querySelectorAll("[data-action]");
+
+function renderHardwareState(id, value, format) {
+  const item = byId(`${id}-state`);
+  item.textContent = format(value);
+  item.dataset.state = value == null ? "unknown" : value ? "active" : "inactive";
+}
 
 function renderDevices(state) {
   const h = state.hardware;
@@ -466,24 +490,33 @@ function renderDevices(state) {
   }
   hardwareState = h;
   availableDevices = state.device_controls ?? [];
-  byId("telescope-menu").disabled = !availableDevices.includes("telescope");
   for (const device of devices) {
     const available = availableDevices.includes(device);
     byId(`${device}-label`).hidden = available;
     byId(`${device}-toggle`).hidden = !available;
-    byId(`${device}-state`).textContent = connected(h[device]);
+    renderHardwareState(device, h[device], connected);
     byId(`${device}-connection`).textContent = h[device] ? "Disconnect" : "Connect";
     if (!available) setPanelOpen(device, false);
   }
   const lampsAvailable = availableDevices.includes("lamps");
-  for (const lamp of lampLabels) {
-    byId(`${lamp}-label`).hidden = lampsAvailable;
-    byId(`${lamp}-toggle`).hidden = !lampsAvailable;
-    byId(`${lamp}-state`).textContent = onOff(h[lamp]);
+  byId("lamps-label").hidden = lampsAvailable;
+  byId("lamps-toggle").hidden = !lampsAvailable;
+  const lampsOn = h.tungsten || h.thorium;
+  const lampsOff = h.tungsten === false && h.thorium === false;
+  renderHardwareState("lamps", lampsOn ? true : lampsOff ? false : null, () => {
+    if (h.tungsten && h.thorium) return "Tungsten + Thorium";
+    if (h.tungsten) return "Tungsten";
+    if (h.thorium) return "Thorium";
+    return lampsOff ? "Off" : "—";
+  });
+  for (const button of lampActions) {
+    const action = button.dataset.action;
+    button.setAttribute("aria-pressed", String(action === "off" ? lampsOff : h[action] === true));
   }
   if (!lampsAvailable) setPanelOpen("lamps", false);
   if (!commandPending) byId("camera-binning").value = h.binning ?? "";
   byId("camera-temperature").hidden = !h.camera;
+  byId("camera-binning-control").hidden = !h.camera;
   byId("camera-test-image").hidden = !h.camera;
   byId("camera-setpoint").placeholder = h.setpoint ?? h.saved_setpoint ?? "";
   domeOperations.hidden = !h.dome;
@@ -498,21 +531,13 @@ function renderDevices(state) {
 
 function setPanelOpen(device, open) {
   byId(`${device}-panel`).hidden = !open;
-  if (device === "telescope") byId("telescope-menu").setAttribute("aria-expanded", String(open));
-  for (const label of device === "lamps" ? lampLabels : [device]) {
-    byId(`${label}-toggle`).setAttribute("aria-expanded", String(open));
-  }
+  byId(`${device}-toggle`).setAttribute("aria-expanded", String(open));
 }
 
 function toggleHardwarePanel(device) {
   const open = byId(`${device}-panel`).hidden;
-  for (const panel of hardwarePanels) setPanelOpen(panel, panel === device && open);
+  for (const panel of devices) setPanelOpen(panel, panel === device && open);
 }
-
-byId("telescope-menu").addEventListener("click", () => {
-  for (const panel of hardwarePanels) setPanelOpen(panel, panel === "telescope");
-  byId("telescope-panel").scrollIntoView({block: "nearest"});
-});
 
 function canCommand(device) {
   return statusLive && !commandPending && availableDevices.includes(device) &&
@@ -669,7 +694,7 @@ function updateDeviceButtons() {
   }
   byId("camera-binning").disabled = !canCommand("camera");
   byId("camera-test-start").disabled =
-    !canCommand("camera") || !hardwareState.camera || batchRunning || acquisitionBusy || telescopeSlewActive;
+    !canCommand("camera") || !hardwareState.camera || batchRunning || acquisitionBusy || telescopeSlewActive || !!testExposure;
   const domeDisabled = !canCommand("dome") || !hardwareState.dome;
   for (const button of domeActions) {
     const positionCommand = ["home", "park"].includes(button.dataset.action);
@@ -685,9 +710,9 @@ for (const device of devices) {
   });
 }
 
-for (const lamp of lampLabels) {
-  byId(`${lamp}-toggle`).addEventListener("click", () => toggleHardwarePanel("lamps"));
-}
+byId("lamps-toggle").addEventListener("click", () => {
+  setPanelOpen("lamps", byId("lamps-panel").hidden);
+});
 
 byId("slew-mode").addEventListener("change", () => {
   const byName = byId("slew-mode").value === "name";
@@ -709,7 +734,11 @@ byId("slew-stop").addEventListener("click", () => {
   sendDeviceCommand("telescope", {action: "stop_slew"}, "slew-command-result");
 });
 for (const button of lampActions) {
-  button.addEventListener("click", () => sendDeviceCommand("lamps", {action: button.dataset.action}));
+  button.addEventListener("click", () => {
+    setPanelOpen("lamps", false);
+    byId("lamps-toggle").focus({preventScroll: true});
+    sendDeviceCommand("lamps", {action: button.dataset.action});
+  });
 }
 
 byId("camera-cooler-on").addEventListener("click", () => sendDeviceCommand("camera", {action: "cooler_on"}));
@@ -722,7 +751,13 @@ byId("camera-test-image").addEventListener("submit", async (event) => {
     byId("camera-result").textContent = "Enter an exposure time greater than zero.";
     return;
   }
-  if (await sendDeviceCommand("camera", {action: "test_image", seconds: exposure.valueAsNumber})) {
+  const seconds = exposure.valueAsNumber;
+  const previousFrame = viewerFrame?.version;
+  byId("camera-test-status").textContent = "";
+  if (await sendDeviceCommand("camera", {action: "test_image", seconds})) {
+    testExposure = {started: performance.now(), seconds, previousFrame};
+    testProgress.hidden = false;
+    updateTestProgress();
     if (!fitsPanel.open) document.querySelector('[data-open-panel="fits-panel"]').click();
   }
 });
@@ -746,9 +781,7 @@ for (const button of domeActions) {
   });
 }
 byId("dome-sync").addEventListener("click", () => {
-  if (hardwareState.sync || window.confirm("Enable dome sync? The dome may move.")) {
-    sendDeviceCommand("dome", {action: hardwareState.sync ? "sync_off" : "sync_on"});
-  }
+  sendDeviceCommand("dome", {action: hardwareState.sync ? "sync_off" : "sync_on"});
 });
 
 byId("batch-run").addEventListener("click", () => {
@@ -770,7 +803,7 @@ for (const [id, field, property] of [
     if (input.disabled || !batchSchedule) return;
     sendDeviceCommand("batch", {action: "schedule", options: {[field]: input[property]}});
   });
-  if (property === "valueAsNumber") {
+  if (property !== "checked") {
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") input.blur();
     });
@@ -813,10 +846,22 @@ byId("batch-download-csv").addEventListener("click", () => {
   sendDeviceCommand("batch", {action: "download_csv"}, "batch-csv-result");
 });
 
+const statusOnlyActions = {
+  camera: ["cooler_on", "cooler_off", "binning", "test_image"],
+  dome: ["sync_on", "sync_off", "open", "close", "park", "home", "abort"],
+  lamps: ["tungsten", "thorium", "off"],
+  telescope: ["slew_name", "slew_coords", "stop_slew"],
+  batch: ["run", "stop"],
+  calibration: ["save_settings"],
+};
+
 async function sendDeviceCommand(device, command, resultId = `${device}-result`) {
   if (!canCommand(device)) return;
   const result = byId(resultId);
-  result.textContent = "Waiting for Spectro Capture…";
+  const connectionAction = command.action === "connect" || command.action === "disconnect";
+  const showStatusOnly = (connectionAction && devices.includes(device))
+    || statusOnlyActions[device]?.includes(command.action) || device === "guiding";
+  result.textContent = showStatusOnly ? "" : "Waiting for Spectro Capture…";
   commandPending = true;
   updateDeviceButtons();
   try {
@@ -835,7 +880,8 @@ async function sendDeviceCommand(device, command, resultId = `${device}-result`)
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       result.textContent = "";
     } else {
-      result.textContent = (await response.json()).message;
+      const {message} = await response.json();
+      result.textContent = showStatusOnly && response.ok ? "" : message;
     }
     return response.ok;
   } catch {

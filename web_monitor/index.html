@@ -15,12 +15,8 @@
       <button type="button" data-open-panel="targets-panel" aria-controls="targets-panel">Targets</button>
       <button type="button" data-open-panel="recent-panel" aria-controls="recent-panel">Status Log</button>
       <button type="button" data-open-panel="fits-panel" aria-controls="fits-panel">FITS Viewer</button>
-      <span>Sequencer</span>
-      <button id="telescope-menu" type="button" aria-controls="telescope-panel" aria-expanded="false" disabled>Telescope</button>
       <button type="button" data-open-panel="guiding-panel" aria-controls="guiding-panel">Guiding</button>
-      <span>Focus</span>
       <button type="button" data-open-panel="calibration-panel" aria-controls="calibration-panel">Calibration Settings</button>
-      <span>Setup</span>
       <button id="theme-open" type="button" aria-haspopup="dialog">Theme</button>
     </nav>
   </aside>
@@ -36,7 +32,7 @@
   </dialog>
   <main>
     <header>
-      <h1>Observatory</h1>
+      <h1>Shenton Park Observatory</h1>
       <p id="connection" role="status">Connecting to Spectro Capture…</p>
     </header>
     <dl id="hardware" aria-label="Observatory status">
@@ -55,13 +51,16 @@
         <dt><span id="dome-label">Dome</span><button id="dome-toggle" class="hardware-toggle" type="button" aria-controls="dome-panel" aria-expanded="false" hidden>Dome</button></dt>
         <dd id="dome-state">—</dd>
       </div>
-      <div id="tungsten-status">
-        <dt><span id="tungsten-label">Tungsten</span><button id="tungsten-toggle" class="hardware-toggle" type="button" aria-controls="lamps-panel" aria-expanded="false" hidden>Tungsten</button></dt>
-        <dd id="tungsten-state">—</dd>
-      </div>
+      <div><dt>Shutter</dt><dd id="shutter-reading">—</dd></div>
+      <div><dt>Dome sync</dt><dd id="dome-sync-reading">—</dd></div>
+      <div><dt>Cooler</dt><dd id="cooler-reading">—</dd></div>
+      <div><dt>Temp</dt><dd id="temperature-reading">—</dd></div>
+      <div><dt>Power</dt><dd id="power-reading">—</dd></div>
+      <div><dt>Binning</dt><dd id="binning-reading">—</dd></div>
       <div>
-        <dt><span id="thorium-label">Thorium</span><button id="thorium-toggle" class="hardware-toggle" type="button" aria-controls="lamps-panel" aria-expanded="false" hidden>Thorium</button></dt>
-        <dd id="thorium-state">—</dd>
+        <dt><span id="lamps-label">Lamp Control</span><button id="lamps-toggle" class="hardware-toggle" type="button" aria-controls="lamps-panel" aria-expanded="false" hidden>Lamp Control</button></dt>
+        <dd id="lamps-state">—</dd>
+        <dd id="lamps-result" class="status-alert" role="status"></dd>
       </div>
     </dl>
     <section id="camera-panel" class="hardware-panel" aria-label="Camera controls" hidden>
@@ -72,7 +71,7 @@
         <button id="camera-cooler-on" type="button" disabled>Cooler On</button>
         <button id="camera-cooler-off" type="button" disabled>Cooler Off</button>
       </form>
-      <label>Binning
+      <label id="camera-binning-control" hidden>Binning
         <select id="camera-binning" disabled>
           <option value="" disabled>—</option>
           <option value="1">1</option><option value="2">2</option><option value="3">3</option>
@@ -82,11 +81,12 @@
         <label>Exposure (s) <input id="camera-test-seconds" type="number" min="0" step="any" value="1" required></label>
         <button id="camera-test-start" type="submit" disabled>Take Test Image</button>
       </form>
+      <progress id="camera-test-progress" aria-label="Estimated test exposure progress" max="100" hidden></progress>
+      <p id="camera-test-status" role="status"></p>
       <p id="camera-result" role="status"></p>
     </section>
     <section id="telescope-panel" class="hardware-panel" aria-label="Telescope controls" hidden>
       <button id="telescope-connection" type="button" disabled>Connect</button>
-      <p id="telescope-result" role="status"></p>
       <form id="telescope-slew">
         <label>Slew by
           <select id="slew-mode"><option value="name">Name</option><option value="coords">Coordinates</option></select>
@@ -98,6 +98,7 @@
         <button id="slew-start" type="submit" disabled>Slew</button>
         <button id="slew-stop" type="button" disabled>Stop Slew</button>
       </form>
+      <p id="telescope-result" role="status"></p>
       <p id="slew-command-result" role="status"></p>
       <p id="slew-result" role="status"></p>
     </section>
@@ -116,11 +117,10 @@
       </div>
       <p id="dome-result" role="status"></p>
     </section>
-    <section id="lamps-panel" class="hardware-panel" aria-label="Lamps" hidden>
-      <button type="button" data-action="tungsten" disabled>Tungsten On</button>
-      <button type="button" data-action="thorium" disabled>Thorium On</button>
-      <button type="button" data-action="off" disabled>Clear All</button>
-      <p id="lamps-result" role="status"></p>
+    <section id="lamps-panel" class="hardware-panel" aria-label="Lamp Control" hidden>
+      <button type="button" data-action="tungsten" aria-pressed="false" disabled>Tungsten</button>
+      <button type="button" data-action="thorium" aria-pressed="false" disabled>Thorium</button>
+      <button type="button" data-action="off" aria-pressed="false" disabled>Clear All</button>
     </section>
     <div id="workspace-panels">
       <details id="batch-panel" class="workspace-panel" open>
@@ -140,7 +140,7 @@
                 <label><input id="schedule-enabled" type="checkbox"> Enable Smart HA Scheduling</label>
                 <label>HA Min (hrs) <input id="schedule-ha-min" type="number" min="-6" max="6" step="any" required></label>
                 <label>HA Max (hrs) <input id="schedule-ha-max" type="number" min="-6" max="6" step="any" required></label>
-                <label>Start (observatory local time) <select id="schedule-start"></select></label>
+                <label>Start (observatory local time) <input id="schedule-start" type="text" placeholder="HH:MM" maxlength="5"></label>
               </div>
               <fieldset class="batch-option-group">
                 <legend>Calibration</legend>

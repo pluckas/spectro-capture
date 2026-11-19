@@ -128,19 +128,21 @@ Use of this software does not imply endorsement by the author of any derived wor
 
 ### Browser monitor
 
-To start the web monitor automatically, add `"web_host": "192.168.20.10"`
-to the top level of the Observatory PC's local `spectro_config.json`
-alongside its existing settings, then start Spectro Capture as usual.
+To start the web monitor automatically, add `"web_host": "192.0.2.10"`
+to the top level of the Windows host's local `spectro_config.json`
+alongside its existing settings. Replace the example address `192.0.2.10`
+with the LAN IP address of the computer running Spectro Capture, then start
+the application as usual.
 For a one-session override, set the host in Windows Command Prompt:
 
 ```bat
-set SPECTRO_WEB_HOST=192.168.20.10
+set SPECTRO_WEB_HOST=192.0.2.10
 python main.py
 ```
 
-Open <http://192.168.20.10:8765/> on a Mac or iPad on the observatory LAN.
-Use `127.0.0.1` as the host to test from the Observatory PC itself.
-Use the monitor on your trusted observatory LAN and keep TCP port
+On a device on the same LAN, open `http://<windows-host-ip>:8765/`.
+Use `127.0.0.1` as the host to test directly on the Windows computer.
+Use the monitor on a trusted private LAN and keep TCP port
 8765 off the public internet. If neither setting supplies a host, only the
 desktop app starts. Run `set SPECTRO_WEB_HOST=` to clear the override
 in that Command Prompt.
@@ -177,7 +179,8 @@ parking, homing, or disconnecting either device.
 
 #### Running a batch
 
-Load the target list on the Observatory PC. In the browser, open **Batch
+Load the target list in the desktop app or through **Targets** in the browser.
+Open **Batch
 options** to change Smart HA Scheduling, HA Min and Max, and an optional
 start time in observatory local time. The panel also includes the
 desktop calibration checkboxes and the options to park the telescope,
