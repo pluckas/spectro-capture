@@ -21,6 +21,7 @@ Sequencer or Auto Capture internals.
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import csv, io, math, os, threading
+import re
 from hashlib import sha256
 from batch_runner import run_batch
 from web_monitor import describe_rows, report
@@ -770,8 +771,15 @@ class BatchTab(ttk.Frame):
             if field in ("pre_calib", "shutdown_calib") and not self.smart_var.get():
                 raise ValueError("Enable Smart HA Scheduling to change calibration options.")
             getattr(self, self.WEB_BATCH_CHECKBOXES[field]).set(value)
-        elif field == "start_local" and (value == "" or value in self.scheduler_start_times):
-            self.batch_start_local.set(value)
+        elif field == "start_local":
+            if not self.smart_var.get():
+                raise ValueError("Enable Smart HA Scheduling to change the start time.")
+            if not isinstance(value, str):
+                raise ValueError("Enter a start time in 24-hour HH:MM format.")
+            value = value.strip()
+            if value and not re.fullmatch(r"(?:[01]?[0-9]|2[0-3]):[0-5][0-9]", value):
+                raise ValueError("Enter a start time in 24-hour HH:MM format.")
+            self.batch_start_local.set(value.zfill(5) if value else "")
         elif field in ("ha_min", "ha_max"):
             schedule = self._web_schedule() | options
             low, high = schedule["ha_min"], schedule["ha_max"]
