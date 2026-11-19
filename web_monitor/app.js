@@ -459,6 +459,12 @@ function renderSchedule() {
 const domeOperations = byId("dome-operations");
 const domeActions = domeOperations.querySelectorAll("[data-action]");
 
+function renderHardwareState(id, value, format) {
+  const item = byId(`${id}-state`);
+  item.textContent = format(value);
+  item.dataset.state = value == null ? "unknown" : value ? "active" : "inactive";
+}
+
 function renderDevices(state) {
   const h = state.hardware;
   if (h.camera && !hardwareState.camera) {
@@ -471,7 +477,7 @@ function renderDevices(state) {
     const available = availableDevices.includes(device);
     byId(`${device}-label`).hidden = available;
     byId(`${device}-toggle`).hidden = !available;
-    byId(`${device}-state`).textContent = connected(h[device]);
+    renderHardwareState(device, h[device], connected);
     byId(`${device}-connection`).textContent = h[device] ? "Disconnect" : "Connect";
     if (!available) setPanelOpen(device, false);
   }
@@ -479,7 +485,7 @@ function renderDevices(state) {
   for (const lamp of lampLabels) {
     byId(`${lamp}-label`).hidden = lampsAvailable;
     byId(`${lamp}-toggle`).hidden = !lampsAvailable;
-    byId(`${lamp}-state`).textContent = onOff(h[lamp]);
+    renderHardwareState(lamp, h[lamp], onOff);
   }
   if (!lampsAvailable) setPanelOpen("lamps", false);
   if (!commandPending) byId("camera-binning").value = h.binning ?? "";
