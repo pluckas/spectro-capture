@@ -124,7 +124,7 @@ function render(state) {
   renderDevices(state);
   const hardware = byId("hardware");
   for (const item of hardware.querySelectorAll(".hardware-reading")) item.remove();
-  byId("tungsten-status").before(...status.map(([label, value, statusClass = ""]) => {
+  byId("lamps-status").before(...status.map(([label, value, statusClass = ""]) => {
     const item = document.createElement("div");
     item.className = "hardware-reading";
     const reading = element("dd", value);
@@ -443,7 +443,6 @@ function targetField(row, edit, field, label, display) {
 }
 
 const devices = ["camera", "telescope", "dome"];
-const lampLabels = ["tungsten", "thorium"];
 const hardwarePanels = [...devices, "lamps"];
 const lampActions = byId("lamps-panel").querySelectorAll("[data-action]");
 let hardwareState = {};
@@ -511,10 +510,19 @@ function renderDevices(state) {
     if (!available) setPanelOpen(device, false);
   }
   const lampsAvailable = availableDevices.includes("lamps");
-  for (const lamp of lampLabels) {
-    byId(`${lamp}-label`).hidden = lampsAvailable;
-    byId(`${lamp}-toggle`).hidden = !lampsAvailable;
-    renderHardwareState(lamp, h[lamp], onOff);
+  byId("lamps-label").hidden = lampsAvailable;
+  byId("lamps-toggle").hidden = !lampsAvailable;
+  const lampsOn = h.tungsten || h.thorium;
+  const lampsOff = h.tungsten === false && h.thorium === false;
+  renderHardwareState("lamps", lampsOn ? true : lampsOff ? false : null, () => {
+    if (h.tungsten && h.thorium) return "W + Th";
+    if (h.tungsten) return "W";
+    if (h.thorium) return "Th";
+    return lampsOff ? "Off" : "—";
+  });
+  for (const button of lampActions) {
+    const action = button.dataset.action;
+    button.setAttribute("aria-pressed", String(action === "off" ? lampsOff : h[action] === true));
   }
   if (!lampsAvailable) setPanelOpen("lamps", false);
   if (!commandPending) byId("camera-binning").value = h.binning ?? "";
@@ -534,9 +542,7 @@ function renderDevices(state) {
 
 function setPanelOpen(device, open) {
   byId(`${device}-panel`).hidden = !open;
-  for (const label of device === "lamps" ? lampLabels : [device]) {
-    byId(`${label}-toggle`).setAttribute("aria-expanded", String(open));
-  }
+  byId(`${device}-toggle`).setAttribute("aria-expanded", String(open));
 }
 
 function toggleHardwarePanel(device) {
@@ -715,9 +721,7 @@ for (const device of devices) {
   });
 }
 
-for (const lamp of lampLabels) {
-  byId(`${lamp}-toggle`).addEventListener("click", () => toggleHardwarePanel("lamps"));
-}
+byId("lamps-toggle").addEventListener("click", () => toggleHardwarePanel("lamps"));
 
 byId("slew-mode").addEventListener("change", () => {
   const byName = byId("slew-mode").value === "name";

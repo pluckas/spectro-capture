@@ -92,7 +92,8 @@ dd { margin: 0; }
 #hardware .status-moving { color: var(--status-lamp-on); }
 #hardware dd[data-state="inactive"] { color: var(--status-inactive); }
 #hardware dd[data-state="active"] { color: var(--status-connected); }
-#hardware :is(#tungsten-state, #thorium-state)[data-state="active"] { color: var(--status-lamp-on); }
+#hardware #lamps-state[data-state="active"] { color: var(--status-lamp-on); }
+#lamps-panel button[aria-pressed="true"] { outline: 1px solid var(--accent); outline-offset: -2px; }
 #activity { font-size: 1.4rem; }
 progress { width: min(100%, 26rem); accent-color: var(--accent); }
 section { margin-block: 1.25rem; }

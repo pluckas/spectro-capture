@@ -51,13 +51,9 @@
         <dt><span id="dome-label">Dome</span><button id="dome-toggle" class="hardware-toggle" type="button" aria-controls="dome-panel" aria-expanded="false" hidden>Dome</button></dt>
         <dd id="dome-state">—</dd>
       </div>
-      <div id="tungsten-status">
-        <dt><span id="tungsten-label">Tungsten</span><button id="tungsten-toggle" class="hardware-toggle" type="button" aria-controls="lamps-panel" aria-expanded="false" hidden>Tungsten</button></dt>
-        <dd id="tungsten-state">—</dd>
-      </div>
-      <div>
-        <dt><span id="thorium-label">Thorium</span><button id="thorium-toggle" class="hardware-toggle" type="button" aria-controls="lamps-panel" aria-expanded="false" hidden>Thorium</button></dt>
-        <dd id="thorium-state">—</dd>
+      <div id="lamps-status">
+        <dt><span id="lamps-label">Lamps</span><button id="lamps-toggle" class="hardware-toggle" type="button" aria-controls="lamps-panel" aria-expanded="false" hidden>Lamps</button></dt>
+        <dd id="lamps-state">—</dd>
       </div>
     </dl>
     <section id="camera-panel" class="hardware-panel" aria-label="Camera controls" hidden>
@@ -115,9 +111,9 @@
       <p id="dome-result" role="status"></p>
     </section>
     <section id="lamps-panel" class="hardware-panel" aria-label="Lamps" hidden>
-      <button type="button" data-action="tungsten" disabled>Tungsten On</button>
-      <button type="button" data-action="thorium" disabled>Thorium On</button>
-      <button type="button" data-action="off" disabled>Clear All</button>
+      <button type="button" data-action="off" aria-pressed="false" disabled>Off</button>
+      <button type="button" data-action="tungsten" aria-pressed="false" disabled>Tungsten (W)</button>
+      <button type="button" data-action="thorium" aria-pressed="false" disabled>Thorium (Th)</button>
       <p id="lamps-result" role="status"></p>
     </section>
     <div id="workspace-panels">
