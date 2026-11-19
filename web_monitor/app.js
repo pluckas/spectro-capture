@@ -816,7 +816,11 @@ byId("batch-download-csv").addEventListener("click", () => {
 async function sendDeviceCommand(device, command, resultId = `${device}-result`) {
   if (!canCommand(device)) return;
   const result = byId(resultId);
-  result.textContent = "Waiting for Spectro Capture…";
+  const connectionAction = command.action === "connect" || command.action === "disconnect";
+  const cameraStatusAction = ["cooler_on", "cooler_off", "binning"].includes(command.action);
+  const showStatusOnly = (device === "telescope" && connectionAction)
+    || (device === "camera" && (connectionAction || cameraStatusAction));
+  result.textContent = showStatusOnly ? "" : "Waiting for Spectro Capture…";
   commandPending = true;
   updateDeviceButtons();
   try {
@@ -835,7 +839,8 @@ async function sendDeviceCommand(device, command, resultId = `${device}-result`)
       setTimeout(() => URL.revokeObjectURL(url), 1000);
       result.textContent = "";
     } else {
-      result.textContent = (await response.json()).message;
+      const {message} = await response.json();
+      result.textContent = showStatusOnly && response.ok ? "" : message;
     }
     return response.ok;
   } catch {
