@@ -157,6 +157,8 @@ time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .6
 .batch-option-group { margin: .75rem 0 0; border: 1px solid var(--border); border-radius: .4rem; }
 .batch-option-group legend { color: var(--muted); }
 .batch-option-group label { display: inline-block; margin: .2rem .9rem .2rem 0; }
+#batch-schedule label:has(input:disabled),
+.batch-option-group label:has(input:disabled) { opacity: .55; }
 
 .target-control { font: inherit; }
 button.target-control { padding: .1rem .3rem; border: 1px solid transparent; background: transparent; color: var(--accent); cursor: pointer; }
