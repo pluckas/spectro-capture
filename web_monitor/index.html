@@ -82,6 +82,8 @@
         <label>Exposure (s) <input id="camera-test-seconds" type="number" min="0" step="any" value="1" required></label>
         <button id="camera-test-start" type="submit" disabled>Take Test Image</button>
       </form>
+      <progress id="camera-test-progress" aria-label="Estimated test exposure progress" max="100" hidden></progress>
+      <p id="camera-test-status" role="status"></p>
       <p id="camera-result" role="status"></p>
     </section>
     <section id="telescope-panel" class="hardware-panel" aria-label="Telescope controls" hidden>

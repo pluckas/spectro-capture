@@ -59,7 +59,27 @@ function element(tag, value) {
 const fitsPanel = byId("fits-panel");
 const fitsImage = byId("fits-image");
 const fitsStatus = byId("fits-status");
+const testProgress = byId("camera-test-progress");
 let viewerFrame;
+let testExposure;
+
+function updateTestProgress() {
+  if (!testExposure) return;
+  const {started, seconds, previousFrame} = testExposure;
+  const elapsed = (performance.now() - started) / 1000;
+  const frameReady = viewerFrame && viewerFrame.version !== previousFrame;
+  const result = byId("camera-test-status");
+  if (frameReady || elapsed >= seconds + 135) {
+    testExposure = undefined;
+    testProgress.hidden = true;
+    result.textContent = frameReady ? "" : "No new preview received. Check the activity log.";
+    updateDeviceButtons();
+    return;
+  }
+  testProgress.value = Math.min(99, 100 * elapsed / seconds);
+  if (elapsed >= seconds && !result.textContent) result.textContent = "Waiting for image…";
+  setTimeout(updateTestProgress, 100);
+}
 
 function renderViewer() {
   if (!fitsPanel.open || !viewerFrame) return;
@@ -676,7 +696,7 @@ function updateDeviceButtons() {
   }
   byId("camera-binning").disabled = !canCommand("camera");
   byId("camera-test-start").disabled =
-    !canCommand("camera") || !hardwareState.camera || batchRunning || acquisitionBusy || telescopeSlewActive;
+    !canCommand("camera") || !hardwareState.camera || batchRunning || acquisitionBusy || telescopeSlewActive || !!testExposure;
   const domeDisabled = !canCommand("dome") || !hardwareState.dome;
   for (const button of domeActions) {
     const positionCommand = ["home", "park"].includes(button.dataset.action);
@@ -729,7 +749,13 @@ byId("camera-test-image").addEventListener("submit", async (event) => {
     byId("camera-result").textContent = "Enter an exposure time greater than zero.";
     return;
   }
-  if (await sendDeviceCommand("camera", {action: "test_image", seconds: exposure.valueAsNumber})) {
+  const seconds = exposure.valueAsNumber;
+  const previousFrame = viewerFrame?.version;
+  byId("camera-test-status").textContent = "";
+  if (await sendDeviceCommand("camera", {action: "test_image", seconds})) {
+    testExposure = {started: performance.now(), seconds, previousFrame};
+    testProgress.hidden = false;
+    updateTestProgress();
     if (!fitsPanel.open) document.querySelector('[data-open-panel="fits-panel"]').click();
   }
 });
@@ -824,7 +850,7 @@ async function sendDeviceCommand(device, command, resultId = `${device}-result`)
   if (!canCommand(device)) return;
   const result = byId(resultId);
   const connectionAction = command.action === "connect" || command.action === "disconnect";
-  const cameraStatusAction = ["cooler_on", "cooler_off", "binning"].includes(command.action);
+  const cameraStatusAction = ["cooler_on", "cooler_off", "binning", "test_image"].includes(command.action);
   const showStatusOnly = (connectionAction && devices.includes(device))
     || (device === "camera" && cameraStatusAction);
   result.textContent = showStatusOnly ? "" : "Waiting for Spectro Capture…";
