@@ -15,6 +15,7 @@
   --status-inactive: #7a7777;
   --status-connected: #78d696;
   --status-lamp-on: #f3cf57;
+  --status-alert: #ff8585;
 }
 
 :root[data-theme="red"] {
@@ -52,6 +53,7 @@
   --status-inactive: #696969;
   --status-connected: #20753c;
   --status-lamp-on: #806000;
+  --status-alert: #b4232d;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -87,6 +89,7 @@ h2 { font-size: 1.12rem; }
 #hardware { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; border-block: 1px solid var(--border); padding: .65rem 0; }
 dt { color: var(--muted); font-size: .8rem; }
 dd { margin: 0; }
+#hardware .status-alert { color: var(--status-alert); }
 #hardware dd[data-state="inactive"] { color: var(--status-inactive); }
 #hardware dd[data-state="active"] { color: var(--status-connected); }
 #hardware :is(#tungsten-state, #thorium-state)[data-state="active"] { color: var(--status-lamp-on); }

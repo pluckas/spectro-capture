@@ -107,19 +107,22 @@ function render(state) {
   const h = state.hardware;
   const shutter = state.dome_status?.shutter;
   const status = [
-    ["Shutter", h.dome ? (shutter && shutter !== "---" ? shutter : "Unknown") : "—"],
-    ["Dome sync", h.slewing ? "Dome moving" : h.dome ? onOff(h.sync) : "—"],
+    ["Shutter", h.dome ? (shutter && shutter !== "---" ? shutter : "Unknown") : "—", h.dome && shutter === "Closed"],
+    ["Dome sync", h.slewing ? "Dome moving" : h.dome ? onOff(h.sync) : "—", h.dome && !h.slewing && h.sync === false],
     ["Cooler", h.cooler && h.setpoint != null ? `On · set ${h.setpoint} °C` : onOff(h.cooler)],
-    ["CCD", h.temperature == null ? "—" : `${h.temperature.toFixed(1)} °C`],
+    ["Temp", h.temperature == null ? "—" : `${h.temperature.toFixed(1)} °C`],
+    ["Power", h.cooler_power == null ? "—" : `${h.cooler_power.toFixed(0)}%`],
     ["Binning", h.binning ?? "—"],
   ];
   renderDevices(state);
   const hardware = byId("hardware");
   for (const item of hardware.querySelectorAll(".hardware-reading")) item.remove();
-  byId("tungsten-status").before(...status.map(([label, value]) => {
+  byId("tungsten-status").before(...status.map(([label, value, alert]) => {
     const item = document.createElement("div");
     item.className = "hardware-reading";
-    item.append(element("dt", label), element("dd", value));
+    const reading = element("dd", value);
+    if (alert) reading.className = "status-alert";
+    item.append(element("dt", label), reading);
     return item;
   }));
 
