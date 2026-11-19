@@ -28,10 +28,9 @@ Key features:
 import os
 import shutil
 import datetime
-import csv
-import math
 import subprocess
 import requests
+from astroquery.simbad import Simbad
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz, CIRS
 from astropy.time import Time
 import astropy.units as u
@@ -242,88 +241,35 @@ def lamp_off():
 
 
 # ----------------------------
-# SIMBAD name resolution
+# Name resolver (Sesame → SIMBAD)
 # ----------------------------
-SIMBAD_SERVERS = (
-    "simbad.cfa.harvard.edu",
-    "simbad.idia.ac.za",
-    "simbad.cds.unistra.fr",
-)
-_simbad_servers = SIMBAD_SERVERS
-
-
-def configure_simbad(preferred_server):
-    """Put the configured SIMBAD host first, keeping the default fallbacks."""
-    global _simbad_servers
-    server = preferred_server.strip().lower() if isinstance(preferred_server, str) else ""
-    if server in SIMBAD_SERVERS:
-        _simbad_servers = (server,) + tuple(host for host in SIMBAD_SERVERS if host != server)
-    else:
-        _simbad_servers = SIMBAD_SERVERS
-        if preferred_server is not None:
-            print(f"Invalid simbad_server {preferred_server!r}; using the default SIMBAD order.")
-
-
-def simbad_host():
-    """Return the preferred host for the SIMBAD browser link."""
-    return _simbad_servers[0]
-
-
-def _query_simbad(target):
-    """Fetch ICRS coordinates and optional proper motions from one SIMBAD row."""
-    target = target.strip()
-    if not target:
-        raise ValueError("Enter a SIMBAD target name.")
-
-    identifier = target.replace("'", "''")
-    query = (
-        "SELECT TOP 2 basic.ra AS ra, basic.dec AS dec, "
-        "basic.pmra AS pmra, basic.pmdec AS pmdec "
-        "FROM basic JOIN ident ON basic.oid = ident.oidref "
-        f"WHERE ident.id = normId('{identifier}')"
-    )
-    failures = []
-    for server in _simbad_servers:
-        try:
-            response = requests.get(
-                f"https://{server}/simbad/sim-tap/sync",
-                params={"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "csv", "QUERY": query},
-                timeout=(3, 8),
-            )
-            response.raise_for_status()
-            reader = csv.DictReader(response.text.lstrip("\ufeff").splitlines(), strict=True)
-            if set(reader.fieldnames or ()) != {"ra", "dec", "pmra", "pmdec"}:
-                raise ValueError("unexpected TAP response")
-            rows = list(reader)
-            if not rows:
-                raise ValueError("target not found")
-            if len(rows) != 1:
-                raise ValueError("ambiguous target identifier")
-
-            row = rows[0]
-            if None in row or any(value is None for value in row.values()):
-                raise ValueError("incomplete TAP row")
-            ra, dec = float(row["ra"]), float(row["dec"])
-            if not (0 <= ra < 360 and -90 <= dec <= 90):
-                raise ValueError("invalid ICRS coordinates")
-            pm_ra = float(row["pmra"] or 0)
-            pm_dec = float(row["pmdec"] or 0)
-            return (
-                SkyCoord(ra=ra * u.deg, dec=dec * u.deg, frame="icrs"),
-                pm_ra if math.isfinite(pm_ra) else 0.0,
-                pm_dec if math.isfinite(pm_dec) else 0.0,
-            )
-        except (requests.RequestException, csv.Error, ValueError) as error:
-            failures.append(f"{server}: {error}")
-
-    raise ValueError(f"SIMBAD lookup failed for {target!r} ({'; '.join(failures)})")
-
-
 def resolve_target_simbad(target: str):
-    """Resolve an object name to (RA_hours, Dec_degs)."""
-    coord, _, _ = _query_simbad(target)
-    return coord.ra.hour, coord.dec.degree
+    """
+    Resolve an object name to (RA_hours, Dec_degs).
+    1) Try Astropy's Sesame resolver (CDS), which returns a SkyCoord directly.
+    2) If that fails and astroquery is available, try Simbad().query_object.
+    Raises ValueError on failure.
+    """
+    try:
+        c = SkyCoord.from_name(target)
+        return c.ra.hour, c.dec.degree
+    except Exception as e1:
+        last_err = e1
 
+    try:
+        sim = Simbad()
+        sim.TIMEOUT = 30
+        res = sim.query_object(target)
+        if res is None or len(res) == 0:
+            raise ValueError(f"Target '{target}' not found in SIMBAD")
+        ra_col = 'RA' if 'RA' in res.colnames else 'ra'
+        dec_col = 'DEC' if 'DEC' in res.colnames else 'dec'
+        ra_str = res[ra_col][0]
+        dec_str = res[dec_col][0]
+        c = SkyCoord(str(ra_str), str(dec_str), unit=(u.hourangle, u.deg))
+        return c.ra.hour, c.dec.degree
+    except Exception as e2:
+        raise ValueError(f"SIMBAD resolution failed: {e1}, {e2}")
 
 # ----------------------------
 # Thread-safe logging helper
@@ -496,7 +442,15 @@ def resolve_target_simbad_pm(target_name: str):
     """Resolve via SIMBAD, retrieve pmRA/pmDec, and apply proper motion."""
     print(f"Resolving '{target_name}' via SIMBAD (with proper motion)...")
 
-    c_j2000, pm_ra, pm_dec = _query_simbad(target_name)
+    Simbad.add_votable_fields('pmra', 'pmdec')
+    result = Simbad.query_object(target_name)
+    if result is None or len(result) == 0:
+        raise ValueError(f"Target '{target_name}' not found in SIMBAD.")
+
+    pm_ra = float(result['pmra'][0]) if result['pmra'][0] is not None else 0.0
+    pm_dec = float(result['pmdec'][0]) if result['pmdec'][0] is not None else 0.0
+
+    c_j2000 = SkyCoord.from_name(target_name)
     print(f"  → RA (J2000)  = {c_j2000.ra.hour:.6f} h")
     print(f"  → Dec (J2000) = {c_j2000.dec.degree:.6f} °")
     print(f"  → Proper motions (mas/yr): {pm_ra:.2f}, {pm_dec:.2f}")

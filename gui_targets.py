@@ -31,14 +31,12 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 import csv
 import webbrowser
-from urllib.parse import urlencode
 import re
 import threading
 
 # --- START NEW BLOCK: PWI4 + PM Imports --------------------------------------
 from utils import (
     resolve_target_simbad,
-    simbad_host,
     resolve_target_simbad_pm,
     apply_proper_motion,
     format_coords,
@@ -235,8 +233,7 @@ class TargetsTab(ttk.Frame):
         if not name:
             self.status_lbl.config(text="Enter or select a target first.")
             return
-        query = urlencode({"Ident": name})
-        url = f"https://{simbad_host()}/simbad/sim-basic?{query}"
+        url = f"https://simbad.u-strasbg.fr/simbad/sim-basic?Ident={name}"
         webbrowser.open(url)
         self.context.log(f"Opened SIMBAD for {name}")
         self.status_lbl.config(text=f"Opened SIMBAD for {name}")

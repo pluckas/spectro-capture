@@ -209,9 +209,9 @@ if __name__ == "__main__":
         # --- Build the main GUI ---
         app = SpectroscopyToolkit(root)
 
-        # Use the local setting unless the launch supplies an override.
+        # The monitor is enabled for this launch only.
         web_server = None
-        web_host = os.environ.get("SPECTRO_WEB_HOST", cfg.get("web_host"))
+        web_host = os.environ.get("SPECTRO_WEB_HOST")
         if web_host:
             try:
                 from web_monitor import DeviceCommands, Monitor, start
