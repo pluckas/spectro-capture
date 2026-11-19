@@ -64,7 +64,6 @@ aside {
 }
 nav { display: grid; gap: .25rem; margin-top: 1.5rem; }
 nav > * { padding: .35rem .65rem; }
-nav span { color: var(--muted); }
 nav button { font: inherit; text-align: left; color: var(--accent); border: 0; border-radius: .35rem; background: transparent; cursor: pointer; }
 nav button:hover { background: var(--selected); }
 .workspace-panel { margin-block: 1rem; border: 1px solid var(--border); border-radius: .5rem; }

@@ -502,7 +502,6 @@ function renderDevices(state) {
   }
   hardwareState = h;
   availableDevices = state.device_controls ?? [];
-  byId("telescope-menu").disabled = !availableDevices.includes("telescope");
   for (const device of devices) {
     const available = availableDevices.includes(device);
     byId(`${device}-label`).hidden = available;
@@ -535,7 +534,6 @@ function renderDevices(state) {
 
 function setPanelOpen(device, open) {
   byId(`${device}-panel`).hidden = !open;
-  if (device === "telescope") byId("telescope-menu").setAttribute("aria-expanded", String(open));
   for (const label of device === "lamps" ? lampLabels : [device]) {
     byId(`${label}-toggle`).setAttribute("aria-expanded", String(open));
   }
@@ -545,11 +543,6 @@ function toggleHardwarePanel(device) {
   const open = byId(`${device}-panel`).hidden;
   for (const panel of hardwarePanels) setPanelOpen(panel, panel === device && open);
 }
-
-byId("telescope-menu").addEventListener("click", () => {
-  for (const panel of hardwarePanels) setPanelOpen(panel, panel === "telescope");
-  byId("telescope-panel").scrollIntoView({block: "nearest"});
-});
 
 function canCommand(device) {
   return statusLive && !commandPending && availableDevices.includes(device) &&
