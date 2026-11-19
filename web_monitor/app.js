@@ -443,7 +443,6 @@ function targetField(row, edit, field, label, display) {
 }
 
 const devices = ["camera", "telescope", "dome"];
-const hardwarePanels = [...devices, "lamps"];
 const lampActions = byId("lamps-panel").querySelectorAll("[data-action]");
 let hardwareState = {};
 let availableDevices = [];
@@ -547,7 +546,7 @@ function setPanelOpen(device, open) {
 
 function toggleHardwarePanel(device) {
   const open = byId(`${device}-panel`).hidden;
-  for (const panel of hardwarePanels) setPanelOpen(panel, panel === device && open);
+  for (const panel of devices) setPanelOpen(panel, panel === device && open);
 }
 
 function canCommand(device) {
@@ -721,7 +720,9 @@ for (const device of devices) {
   });
 }
 
-byId("lamps-toggle").addEventListener("click", () => toggleHardwarePanel("lamps"));
+byId("lamps-toggle").addEventListener("click", () => {
+  setPanelOpen("lamps", byId("lamps-panel").hidden);
+});
 
 byId("slew-mode").addEventListener("change", () => {
   const byName = byId("slew-mode").value === "name";
@@ -743,7 +744,11 @@ byId("slew-stop").addEventListener("click", () => {
   sendDeviceCommand("telescope", {action: "stop_slew"}, "slew-command-result");
 });
 for (const button of lampActions) {
-  button.addEventListener("click", () => sendDeviceCommand("lamps", {action: button.dataset.action}));
+  button.addEventListener("click", () => {
+    setPanelOpen("lamps", false);
+    byId("lamps-toggle").focus({preventScroll: true});
+    sendDeviceCommand("lamps", {action: button.dataset.action});
+  });
 }
 
 byId("camera-cooler-on").addEventListener("click", () => sendDeviceCommand("camera", {action: "cooler_on"}));

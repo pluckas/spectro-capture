@@ -54,6 +54,7 @@
       <div id="lamps-status">
         <dt><span id="lamps-label">Lamps</span><button id="lamps-toggle" class="hardware-toggle" type="button" aria-controls="lamps-panel" aria-expanded="false" hidden>Lamps</button></dt>
         <dd id="lamps-state">—</dd>
+        <dd id="lamps-result" class="status-alert" role="status"></dd>
       </div>
     </dl>
     <section id="camera-panel" class="hardware-panel" aria-label="Camera controls" hidden>
@@ -114,7 +115,6 @@
       <button type="button" data-action="off" aria-pressed="false" disabled>Off</button>
       <button type="button" data-action="tungsten" aria-pressed="false" disabled>Tungsten (W)</button>
       <button type="button" data-action="thorium" aria-pressed="false" disabled>Thorium (Th)</button>
-      <p id="lamps-result" role="status"></p>
     </section>
     <div id="workspace-panels">
       <details id="batch-panel" class="workspace-panel" open>
