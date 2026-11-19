@@ -106,10 +106,17 @@ function render(state) {
   renderViewer();
   const h = state.hardware;
   const shutter = state.dome_status?.shutter;
+  let shutterClass = "";
+  if (h.dome) {
+    if (shutter === "Closed") shutterClass = "status-alert";
+    if (shutter === "Opening" || shutter === "Closing") shutterClass = "status-moving";
+  }
   const status = [
-    ["Shutter", h.dome ? (shutter && shutter !== "---" ? shutter : "Unknown") : "—", h.dome && shutter === "Closed"],
-    ["Dome sync", h.slewing ? "Dome moving" : h.dome ? onOff(h.sync) : "—", h.dome && !h.slewing && h.sync === false],
-    ["Cooler", h.cooler && h.setpoint != null ? `On · set ${h.setpoint} °C` : onOff(h.cooler)],
+    ["Shutter", h.dome ? (shutter && shutter !== "---" ? shutter : "Unknown") : "—", shutterClass],
+    ["Dome sync", h.slewing ? "Dome moving" : h.dome ? onOff(h.sync) : "—",
+      h.dome && !h.slewing && h.sync === false ? "status-alert" : ""],
+    ["Cooler", h.cooler && h.setpoint != null ? `On · set ${h.setpoint} °C` : onOff(h.cooler),
+      h.cooler === false ? "status-alert" : ""],
     ["Temp", h.temperature == null ? "—" : `${h.temperature.toFixed(1)} °C`],
     ["Power", h.cooler_power == null ? "—" : `${h.cooler_power.toFixed(0)}%`],
     ["Binning", h.binning ?? "—"],
@@ -117,11 +124,11 @@ function render(state) {
   renderDevices(state);
   const hardware = byId("hardware");
   for (const item of hardware.querySelectorAll(".hardware-reading")) item.remove();
-  byId("tungsten-status").before(...status.map(([label, value, alert]) => {
+  byId("tungsten-status").before(...status.map(([label, value, statusClass = ""]) => {
     const item = document.createElement("div");
     item.className = "hardware-reading";
     const reading = element("dd", value);
-    if (alert) reading.className = "status-alert";
+    reading.className = statusClass;
     item.append(element("dt", label), reading);
     return item;
   }));
@@ -782,9 +789,7 @@ for (const button of domeActions) {
   });
 }
 byId("dome-sync").addEventListener("click", () => {
-  if (hardwareState.sync || window.confirm("Enable dome sync? The dome may move.")) {
-    sendDeviceCommand("dome", {action: hardwareState.sync ? "sync_off" : "sync_on"});
-  }
+  sendDeviceCommand("dome", {action: hardwareState.sync ? "sync_off" : "sync_on"});
 });
 
 byId("batch-run").addEventListener("click", () => {
@@ -849,13 +854,21 @@ byId("batch-download-csv").addEventListener("click", () => {
   sendDeviceCommand("batch", {action: "download_csv"}, "batch-csv-result");
 });
 
+const statusOnlyActions = {
+  camera: ["cooler_on", "cooler_off", "binning", "test_image"],
+  dome: ["sync_on", "sync_off", "open", "close", "park", "home", "abort"],
+  lamps: ["tungsten", "thorium", "off"],
+  telescope: ["slew_name", "slew_coords", "stop_slew"],
+  batch: ["run", "stop"],
+  calibration: ["save_settings"],
+};
+
 async function sendDeviceCommand(device, command, resultId = `${device}-result`) {
   if (!canCommand(device)) return;
   const result = byId(resultId);
   const connectionAction = command.action === "connect" || command.action === "disconnect";
-  const cameraStatusAction = ["cooler_on", "cooler_off", "binning", "test_image"].includes(command.action);
   const showStatusOnly = (connectionAction && devices.includes(device))
-    || (device === "camera" && cameraStatusAction);
+    || statusOnlyActions[device]?.includes(command.action) || device === "guiding";
   result.textContent = showStatusOnly ? "" : "Waiting for Spectro Capture…";
   commandPending = true;
   updateDeviceButtons();

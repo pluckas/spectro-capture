@@ -90,6 +90,7 @@ h2 { font-size: 1.12rem; }
 dt { color: var(--muted); font-size: .8rem; }
 dd { margin: 0; }
 #hardware .status-alert { color: var(--status-alert); }
+#hardware .status-moving { color: var(--status-lamp-on); }
 #hardware dd[data-state="inactive"] { color: var(--status-inactive); }
 #hardware dd[data-state="active"] { color: var(--status-connected); }
 #hardware :is(#tungsten-state, #thorium-state)[data-state="active"] { color: var(--status-lamp-on); }
