@@ -478,14 +478,6 @@ function renderSchedule() {
   }
   const start = byId("schedule-start");
   if (document.activeElement !== start) start.value = batchSchedule.start_local;
-  const presets = byId("schedule-start-preset");
-  const times = ["presets", "", ...batchSchedule.start_times];
-  if (Array.from(presets.options, (option) => option.value).join() !== times.join()) {
-    presets.replaceChildren(new Option("Presets", "presets"), new Option("No scheduled start", ""),
-      ...batchSchedule.start_times.map((time) => new Option(time, time)));
-    presets.options[0].disabled = true;
-    presets.value = "presets";
-  }
 }
 const domeOperations = byId("dome-operations");
 const domeActions = domeOperations.querySelectorAll("[data-action]");
@@ -695,7 +687,7 @@ function updateDeviceButtons() {
   for (const [id, , requiresScheduling] of batchOptionCheckboxes) {
     byId(id).disabled = scheduleLocked || (requiresScheduling && !batchSchedule.enabled);
   }
-  for (const id of ["schedule-ha-min", "schedule-ha-max", "schedule-start", "schedule-start-preset"]) {
+  for (const id of ["schedule-ha-min", "schedule-ha-max", "schedule-start"]) {
     byId(id).disabled = scheduleLocked || !batchSchedule.enabled;
   }
   for (const device of devices) {
@@ -809,34 +801,19 @@ for (const [id, field, property] of [
   ...batchOptionCheckboxes.map(([id, field]) => [id, field, "checked"]),
   ["schedule-ha-min", "ha_min", "valueAsNumber"],
   ["schedule-ha-max", "ha_max", "valueAsNumber"],
+  ["schedule-start", "start_local", "value"],
 ]) {
   const input = byId(id);
   input.addEventListener("change", () => {
     if (input.disabled || !batchSchedule) return;
     sendDeviceCommand("batch", {action: "schedule", options: {[field]: input[property]}});
   });
-  if (property === "valueAsNumber") {
+  if (property !== "checked") {
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter") input.blur();
     });
   }
 }
-
-const scheduleStart = byId("schedule-start");
-const scheduleStartPreset = byId("schedule-start-preset");
-function saveScheduleStart() {
-  if (scheduleStart.disabled || !batchSchedule) return;
-  sendDeviceCommand("batch", {action: "schedule", options: {start_local: scheduleStart.value}});
-}
-scheduleStart.addEventListener("change", saveScheduleStart);
-scheduleStart.addEventListener("keydown", (event) => {
-  if (event.key === "Enter") scheduleStart.blur();
-});
-scheduleStartPreset.addEventListener("change", () => {
-  scheduleStart.value = scheduleStartPreset.value;
-  scheduleStartPreset.value = "presets";
-  saveScheduleStart();
-});
 
 byId("batch-add-target").addEventListener("click", () => openTargetEditor());
 byId("batch-clear-targets").addEventListener("click", () => {

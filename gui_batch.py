@@ -802,7 +802,7 @@ class BatchTab(ttk.Frame):
                 value = None
             limits.append(value if value is not None and math.isfinite(value) else None)
         return {"enabled": self.smart_var.get(), "ha_min": limits[0], "ha_max": limits[1],
-                "start_local": self.batch_start_local.get(), "start_times": self.scheduler_start_times,
+                "start_local": self.batch_start_local.get(),
                 **{field: getattr(self, variable).get()
                    for field, variable in self.WEB_BATCH_CHECKBOXES.items()}}
 

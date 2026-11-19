@@ -151,7 +151,6 @@ time { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: .6
 #batch-schedule { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem .85rem; padding-top: .6rem; }
 #batch-schedule label { display: inline-flex; align-items: center; gap: .35rem; }
 #batch-schedule input[type="number"] { width: 5rem; }
-.schedule-start-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
 #schedule-start { width: 5rem; }
 #batch-schedule input, #batch-schedule select { font: inherit; }
 
