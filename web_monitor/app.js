@@ -490,6 +490,7 @@ function renderDevices(state) {
   if (!lampsAvailable) setPanelOpen("lamps", false);
   if (!commandPending) byId("camera-binning").value = h.binning ?? "";
   byId("camera-temperature").hidden = !h.camera;
+  byId("camera-binning-control").hidden = !h.camera;
   byId("camera-test-image").hidden = !h.camera;
   byId("camera-setpoint").placeholder = h.setpoint ?? h.saved_setpoint ?? "";
   domeOperations.hidden = !h.dome;
@@ -824,8 +825,8 @@ async function sendDeviceCommand(device, command, resultId = `${device}-result`)
   const result = byId(resultId);
   const connectionAction = command.action === "connect" || command.action === "disconnect";
   const cameraStatusAction = ["cooler_on", "cooler_off", "binning"].includes(command.action);
-  const showStatusOnly = (device === "telescope" && connectionAction)
-    || (device === "camera" && (connectionAction || cameraStatusAction));
+  const showStatusOnly = (connectionAction && devices.includes(device))
+    || (device === "camera" && cameraStatusAction);
   result.textContent = showStatusOnly ? "" : "Waiting for Spectro Capture…";
   commandPending = true;
   updateDeviceButtons();
