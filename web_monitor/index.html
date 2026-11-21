@@ -17,6 +17,7 @@
       <button type="button" data-open-panel="fits-panel" aria-controls="fits-panel">FITS Viewer</button>
       <button type="button" data-open-panel="guiding-panel" aria-controls="guiding-panel">Guiding</button>
       <button type="button" data-open-panel="calibration-panel" aria-controls="calibration-panel">Calibration Settings</button>
+      <button type="button" data-open-panel="weather-panel" aria-controls="weather-panel">Weather</button>
       <button id="theme-open" type="button" aria-haspopup="dialog">Theme</button>
     </nav>
   </aside>
@@ -130,13 +131,26 @@
     </section>
       <div id="status-details" hidden>
         <section>
-          <h3>Telescope</h3>
+          <h3>Observatory</h3>
           <dl class="pointing">
-            <dt>Altitude</dt><dd id="point-alt">—</dd>
-            <dt>Azimuth</dt><dd id="point-az">—</dd>
+            <dt>Local</dt><dd id="observatory-local">—</dd>
+            <dt>UTC</dt><dd id="observatory-utc">—</dd>
+            <dt>LST</dt><dd id="observatory-lst">—</dd>
+            <dt>Telescope Alt</dt><dd id="point-alt">—</dd>
+            <dt>Az</dt><dd id="point-az">—</dd>
+            <dt>RA</dt><dd id="point-ra">—</dd>
+            <dt>Dec</dt><dd id="point-dec">—</dd>
             <dt>Hour angle</dt><dd id="point-ha">—</dd>
-            <dt>Apparent RA</dt><dd id="point-ra">—</dd>
-            <dt>Apparent Dec</dt><dd id="point-dec">—</dd>
+            <dt>Sky temp (ΔT)</dt><dd id="status-weather">—</dd>
+            <dt>Sky condition</dt><dd id="status-sky-condition">—</dd>
+          </dl>
+        </section>
+        <section id="status-camera">
+          <h3>Camera</h3>
+          <dl class="pointing">
+            <dt>Status</dt><dd id="status-camera-connection">—</dd>
+            <dt>Binning</dt><dd id="status-camera-binning">—</dd>
+            <dt>Temp</dt><dd id="status-camera-temp">—</dd>
           </dl>
         </section>
         <section>
@@ -145,15 +159,12 @@
           <img id="status-guide-image" alt="Guide camera cropped around the saved fibre position" hidden>
           <p id="status-guide-caption"></p>
         </section>
-        <section>
-          <h3>Clarity</h3>
-          <p>Sky ΔT <strong id="status-weather">—</strong></p>
-        </section>
       </div>
-      <div class="status-acquisition">
-        <h3>Acquisition</h3>
-        <p id="status-acquisition">Waiting for status</p>
-        <progress id="status-progress" aria-label="Current exposure" hidden></progress>
+      <div id="status-acquisition-compact">
+        <div id="status-exposure">
+          <p id="status-acquisition">Waiting for status</p>
+          <progress id="status-progress" aria-label="Current exposure" hidden></progress>
+        </div>
       </div>
       <details id="recent-panel">
         <summary>Run Log</summary>
@@ -328,6 +339,24 @@
         <div class="workspace-panel-body">
           <img id="fits-image" alt="Latest frame displayed in the desktop FITS Viewer" hidden>
           <p id="fits-status">Waiting for a frame.</p>
+        </div>
+      </details>
+      <details id="weather-panel" class="workspace-panel">
+        <summary>Weather</summary>
+        <div class="workspace-panel-body">
+          <p id="weather-message" hidden></p>
+          <dl id="weather-readings" class="pointing">
+            <dt>Sky condition</dt><dd id="weather-sky-condition">—</dd>
+            <dt>Sky ΔT</dt><dd id="weather-sky-delta">—</dd>
+            <dt>Outside temperature</dt><dd id="weather-outside">—</dd>
+            <dt>Dew point</dt><dd id="weather-dew-point">—</dd>
+            <dt>Relative humidity</dt><dd id="weather-humidity">—</dd>
+            <dt>Wind</dt><dd id="weather-wind">—</dd>
+            <dt>Rain and wetness</dt><dd id="weather-rain">—</dd>
+            <dt>Light level</dt><dd id="weather-light">—</dd>
+            <dt>Sensor case temperature</dt><dd id="weather-sensor">—</dd>
+            <dt>Heater output</dt><dd id="weather-heater">—</dd>
+          </dl>
         </div>
       </details>
     </div>

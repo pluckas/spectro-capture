@@ -1392,14 +1392,18 @@ def _run_guiding_phase(context, guide):
         context.guide_log("Waiting 5 s for guider to stabilise before fibre lock restore...")
         time.sleep(5)
 
-        if hasattr(guide, "restore_lock"):
-            context.guide_log("Restoring fibre lock position via GuideTab method...")
-            guide.restore_lock()
-            context.guide_log("Fibre lock restore command issued successfully.")
-            time.sleep(7)
+        report(context, "publish", guide_phase="Restoring to fibre")
+        try:
+            if hasattr(guide, "restore_lock"):
+                context.guide_log("Restoring fibre lock position via GuideTab method...")
+                guide.restore_lock()
+                context.guide_log("Fibre lock restore command issued successfully.")
+                time.sleep(7)
 
-        # Fibre settle verification (NOW RETURNS BOOL)
-        return _fibre_settle(context, g)
+            # Fibre settle verification (NOW RETURNS BOOL)
+            return _fibre_settle(context, g)
+        finally:
+            report(context, "publish", guide_phase=None)
 
     except Exception as e:
         context.guide_log(f"Guider phase failed: {e}")

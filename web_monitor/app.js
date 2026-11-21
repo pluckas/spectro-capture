@@ -56,6 +56,7 @@ const statusDetails = byId("status-details");
 const statusDetailsToggle = byId("status-details-toggle");
 statusDetailsToggle.addEventListener("click", () => {
   statusDetails.hidden = !statusDetails.hidden;
+  byId(statusDetails.hidden ? "status-acquisition-compact" : "status-camera").append(byId("status-exposure"));
   statusDetailsToggle.textContent = statusDetails.hidden ? "Show Details" : "Hide Details";
   statusDetailsToggle.setAttribute("aria-expanded", String(!statusDetails.hidden));
 });
@@ -81,15 +82,41 @@ function sexagesimal(value, places, signed, degrees = false) {
 
 function renderPointingAndWeather(state) {
   const pointing = state.pointing ?? {};
+  byId("observatory-local").textContent = state.local_time ?? "—";
+  byId("observatory-utc").textContent = state.utc_time ?? "—";
+  byId("observatory-lst").textContent = sexagesimal(pointing.lst, 0, false);
   for (const field of ["alt", "az"]) {
     byId(`point-${field}`).textContent = pointing[field] == null ? "—" : `${pointing[field].toFixed(2)}°`;
   }
   byId("point-ha").textContent = sexagesimal(pointing.ha, 0, true);
   byId("point-ra").textContent = sexagesimal(pointing.ra, 2, false);
   byId("point-dec").textContent = sexagesimal(pointing.dec, 1, true, true);
-  const weather = state.weather;
-  byId("status-weather").textContent = weather?.sky_delta == null
-    ? weather?.message ?? "—" : `${weather.sky_delta.toFixed(1)} °C`;
+  const weather = state.weather ?? {};
+  const temperature = (value) => value == null ? null : `${value.toFixed(1)} °C`;
+  const percent = (value) => value == null ? null : `${value}%`;
+  const skyDelta = temperature(weather.sky_delta);
+  byId("status-sky-condition").textContent = weather.sky_condition ?? weather.message ?? "—";
+  byId("status-weather").textContent = skyDelta ?? "—";
+  const message = byId("weather-message");
+  message.textContent = weather.message ?? "";
+  message.hidden = !weather.message;
+  byId("weather-readings").hidden = Boolean(weather.message);
+  const wind = weather.wind == null ? null : `${weather.wind.toFixed(1)} ${weather.wind_unit}`;
+  const readings = {
+    "sky-condition": weather.sky_condition,
+    "sky-delta": skyDelta,
+    outside: temperature(weather.outside),
+    "dew-point": temperature(weather.dew_point),
+    humidity: percent(weather.humidity),
+    wind: [wind, weather.wind_condition].filter(Boolean).join(" · ") || null,
+    rain: weather.rain,
+    light: weather.light,
+    sensor: temperature(weather.sensor),
+    heater: percent(weather.heater),
+  };
+  for (const [field, value] of Object.entries(readings)) {
+    byId(`weather-${field}`).textContent = value ?? "—";
+  }
 }
 
 let lastLogKey;
@@ -192,6 +219,9 @@ function render(state) {
     reading.textContent = value;
     reading.className = statusClass;
   }
+  byId("status-camera-connection").textContent = connected(h.camera);
+  byId("status-camera-binning").textContent = byId("binning-reading").textContent;
+  byId("status-camera-temp").textContent = byId("temperature-reading").textContent;
 
   const run = state.run;
   batchRunning = state.batch_running === true;
@@ -650,7 +680,12 @@ function renderGuiding(state) {
   byId("guide-star-status").textContent = state.guide_star_message ?? "Waiting for a fibre-centred frame…";
   renderGuideCrop(guideStarImage, state.guide_star, guidingPanel.open);
   renderGuideCrop(statusGuideImage, state.guide_star, !statusDetails.hidden);
-  byId("status-guide-state").textContent = state.guide_app_state ?? "—";
+  const guideState = state.guide_app_state;
+  byId("status-guide-state").textContent = [
+    guideState ? "Connected" : "PHD2 status unavailable",
+    guideState,
+    batchRunning && !state.batch_stopping ? state.guide_phase : null,
+  ].filter(Boolean).join(" · ");
   byId("status-guide-caption").textContent = state.guide_snapshot_message || state.guide_star_message || "";
   if (watchingGuide()
       && !guideBusy && !commandPending && Date.now() >= nextGuideRefresh) {

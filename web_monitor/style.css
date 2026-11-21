@@ -196,7 +196,7 @@ button.target-control:disabled { color: inherit; cursor: default; }
 }
 
 #system-status { border: 1px solid var(--border); border-radius: .5rem; padding: .75rem; margin-bottom: 1rem; }
-.system-status-heading, .status-acquisition { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; }
+.system-status-heading { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; }
 .system-status-heading h2 { margin-right: auto; }
 #system-status h2, #system-status h3, #system-status p { margin-block: .25rem; }
 #status-details { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: .75rem; margin-block: .75rem; }
@@ -204,6 +204,7 @@ button.target-control:disabled { color: inherit; cursor: default; }
 .pointing { display: grid; grid-template-columns: auto 1fr; gap: .25rem .75rem; font-variant-numeric: tabular-nums; }
 .pointing dd { text-align: right; }
 #status-guide-image { display: block; width: min(8rem, 100%); height: auto; }
+#status-acquisition-compact #status-exposure { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; }
 #status-progress { width: min(16rem, 100%); }
 #recent-panel { margin-top: .75rem; }
 #events { max-height: 13rem; overflow: auto; }
