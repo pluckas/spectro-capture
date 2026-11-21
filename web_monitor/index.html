@@ -35,6 +35,12 @@
       <h1>Shenton Park Observatory</h1>
       <p id="connection" role="status">Connecting to Spectro Capture…</p>
     </header>
+    <section id="system-status" aria-labelledby="system-status-title">
+      <div class="system-status-heading">
+        <h2 id="system-status-title">System Status</h2>
+        <button id="status-details-toggle" type="button" aria-controls="status-details" aria-expanded="false">Show Details</button>
+        <button id="status-log-toggle" type="button" aria-controls="recent-panel" aria-expanded="false">Show Run Log</button>
+      </div>
     <dl id="hardware" aria-label="Observatory status">
       <div>
         <dt>
@@ -122,6 +128,38 @@
       <button type="button" data-action="thorium" aria-pressed="false" disabled>Thorium</button>
       <button type="button" data-action="off" aria-pressed="false" disabled>Clear All</button>
     </section>
+      <div id="status-details" hidden>
+        <section>
+          <h3>Telescope</h3>
+          <dl class="pointing">
+            <dt>Altitude</dt><dd id="point-alt">—</dd>
+            <dt>Azimuth</dt><dd id="point-az">—</dd>
+            <dt>Hour angle</dt><dd id="point-ha">—</dd>
+            <dt>Apparent RA</dt><dd id="point-ra">—</dd>
+            <dt>Apparent Dec</dt><dd id="point-dec">—</dd>
+          </dl>
+        </section>
+        <section>
+          <h3>Guiding</h3>
+          <p id="status-guide-state"></p>
+          <img id="status-guide-image" alt="Guide camera cropped around the saved fibre position" hidden>
+          <p id="status-guide-caption"></p>
+        </section>
+        <section>
+          <h3>Clarity</h3>
+          <p>Sky ΔT <strong id="status-weather">—</strong></p>
+        </section>
+      </div>
+      <div class="status-acquisition">
+        <h3>Acquisition</h3>
+        <p id="status-acquisition">Waiting for status</p>
+        <progress id="status-progress" aria-label="Current exposure" hidden></progress>
+      </div>
+      <details id="recent-panel">
+        <summary>Run Log</summary>
+        <ol id="events" tabindex="0"></ol>
+      </details>
+    </section>
     <div id="workspace-panels">
       <details id="batch-panel" class="workspace-panel" open>
         <summary>Batch Runner</summary>
@@ -206,12 +244,6 @@
               </td>
             </tr>
           </template>
-        </div>
-      </details>
-      <details id="recent-panel" class="workspace-panel" open>
-        <summary>Status Log</summary>
-        <div class="workspace-panel-body">
-          <ol id="events"></ol>
         </div>
       </details>
       <details id="calibration-panel" class="workspace-panel">

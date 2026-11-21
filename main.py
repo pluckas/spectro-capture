@@ -211,10 +211,12 @@ if __name__ == "__main__":
 
         # Use the local setting unless the launch supplies an override.
         web_server = None
+        web_telemetry_stop = None
         web_host = os.environ.get("SPECTRO_WEB_HOST", cfg.get("web_host"))
         if web_host:
             try:
-                from web_monitor import DeviceCommands, Monitor, start
+                from utils import get_status
+                from web_monitor import DeviceCommands, Monitor, start, start_telemetry
                 monitor = Monitor()
                 setup = app.context.setup
                 dome_tab = app.context.dome_tab
@@ -233,6 +235,7 @@ if __name__ == "__main__":
                 commands = DeviceCommands(handlers)
                 monitor.publish(device_controls=list(handlers), guide_exposure_choices=app.guide.exposure_values)
                 web_server = start(monitor, web_host, commands=commands)
+                web_telemetry_stop = start_telemetry(monitor, get_status, cfg.get("clarity_file"))
                 commands.poll(root)
                 app.context.web_monitor = monitor
                 app.context.log(f"Web monitor listening at http://{web_host}:8765/")
@@ -258,6 +261,8 @@ if __name__ == "__main__":
             except Exception as e:
                 print(f"Could not save window geometry: {e}")
             finally:
+                if web_telemetry_stop is not None:
+                    web_telemetry_stop.set()
                 if web_server is not None:
                     web_server.shutdown()
                     web_server.server_close()

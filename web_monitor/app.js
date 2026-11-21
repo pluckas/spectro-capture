@@ -42,12 +42,77 @@ const workspacePanels = byId("workspace-panels");
 for (const button of document.querySelectorAll("[data-open-panel]")) {
   button.addEventListener("click", () => {
     const panel = byId(button.dataset.openPanel);
-    if (workspacePanels.firstElementChild !== panel) workspacePanels.prepend(panel);
+    if (panel.parentElement === workspacePanels && workspacePanels.firstElementChild !== panel) {
+      workspacePanels.prepend(panel);
+    }
     panel.open = true;
     const summary = panel.querySelector("summary");
     summary.focus({preventScroll: true});
     summary.scrollIntoView({block: "nearest"});
   });
+}
+
+const statusDetails = byId("status-details");
+const statusDetailsToggle = byId("status-details-toggle");
+statusDetailsToggle.addEventListener("click", () => {
+  statusDetails.hidden = !statusDetails.hidden;
+  statusDetailsToggle.textContent = statusDetails.hidden ? "Show Details" : "Hide Details";
+  statusDetailsToggle.setAttribute("aria-expanded", String(!statusDetails.hidden));
+});
+
+const runLog = byId("recent-panel");
+const runLogToggle = byId("status-log-toggle");
+runLogToggle.addEventListener("click", () => { runLog.open = !runLog.open; });
+runLog.addEventListener("toggle", () => {
+  runLogToggle.textContent = runLog.open ? "Hide Run Log" : "Show Run Log";
+  runLogToggle.setAttribute("aria-expanded", String(runLog.open));
+});
+
+function sexagesimal(value, places, signed, degrees = false) {
+  if (value == null) return "—";
+  const scale = 10 ** places;
+  const ticks = Math.round(Math.abs(value) * 3600 * scale);
+  const leading = String(Math.floor(ticks / (3600 * scale))).padStart(2, "0");
+  const minutes = String(Math.floor(ticks / (60 * scale)) % 60).padStart(2, "0");
+  const seconds = ((ticks / scale) % 60).toFixed(places).padStart(places ? places + 3 : 2, "0");
+  const sign = value < 0 ? "−" : signed ? "+" : "";
+  return degrees ? `${sign}${leading}°${minutes}′${seconds}″` : `${sign}${leading}:${minutes}:${seconds}`;
+}
+
+function renderPointingAndWeather(state) {
+  const pointing = state.pointing ?? {};
+  for (const field of ["alt", "az"]) {
+    byId(`point-${field}`).textContent = pointing[field] == null ? "—" : `${pointing[field].toFixed(2)}°`;
+  }
+  byId("point-ha").textContent = sexagesimal(pointing.ha, 0, true);
+  byId("point-ra").textContent = sexagesimal(pointing.ra, 2, false);
+  byId("point-dec").textContent = sexagesimal(pointing.dec, 1, true, true);
+  const weather = state.weather;
+  byId("status-weather").textContent = weather?.sky_delta == null
+    ? weather?.message ?? "—" : `${weather.sky_delta.toFixed(1)} °C`;
+}
+
+let lastLogKey;
+function renderRunLog(events) {
+  if (!runLog.open) return;
+  const key = JSON.stringify(events);
+  if (key === lastLogKey) return;
+  lastLogKey = key;
+  const list = byId("events");
+  const previousFirst = list.firstElementChild?.dataset.eventKey;
+  const previousTop = list.scrollTop;
+  list.replaceChildren(...[...events].reverse().map((event) => {
+    const item = document.createElement("li");
+    item.dataset.eventKey = JSON.stringify(event);
+    const time = element("time", clock(event.time));
+    time.dateTime = event.time;
+    item.append(time, document.createTextNode(event.message));
+    return item;
+  }));
+  const formerFirst = [...list.children].find((item) => item.dataset.eventKey === previousFirst);
+  if (previousTop > 0 && formerFirst) {
+    list.scrollTop = previousTop + formerFirst.offsetTop - list.firstElementChild.offsetTop;
+  }
 }
 
 function element(tag, value) {
@@ -168,13 +233,19 @@ function render(state) {
   byId("targets").textContent = run?.running ? "Active batch targets" : "Targets";
   renderTargets(rows, run, state.target_edits ?? []);
 
-  byId("events").replaceChildren(...state.events.slice().reverse().map((event) => {
-    const item = document.createElement("li");
-    const time = element("time", clock(event.time));
-    time.dateTime = event.time;
-    item.append(time, document.createTextNode(event.message));
-    return item;
-  }));
+  renderPointingAndWeather(state);
+  const acquisition = byId("status-acquisition");
+  const statusProgress = byId("status-progress");
+  const activeTarget = run?.rows?.[run.active]?.target;
+  acquisition.textContent = exposure
+    ? `${[activeTarget !== exposure.label ? activeTarget : null, byId("exposure").textContent].filter(Boolean).join(" · ")}`
+    : byId("activity").textContent;
+  statusProgress.hidden = !exposure;
+  if (exposure) {
+    statusProgress.max = byId("progress").max;
+    statusProgress.value = byId("progress").value;
+  }
+  renderRunLog(state.events);
 }
 
 let targetTableKey;
@@ -549,6 +620,19 @@ const guideSeconds = byId("guide-seconds");
 const guideImage = byId("guide-field-image");
 const guideStarImage = byId("guide-star-image");
 const guidingPanel = byId("guiding-panel");
+const statusGuideImage = byId("status-guide-image");
+const watchingGuide = () => (guidingPanel.open || !statusDetails.hidden) && !document.hidden
+  && availableDevices.includes("guiding");
+
+function renderGuideCrop(image, version, visible) {
+  if (!visible || !version) {
+    image.hidden = true;
+    image.removeAttribute("src");
+    return;
+  }
+  const source = `/api/guide-star/${version}`;
+  if (image.getAttribute("src") !== source) image.src = source;
+}
 const guideRefreshMs = 1000;
 let nextGuideRefresh = 0;
 let guideBusy = false;
@@ -564,14 +648,11 @@ function renderGuiding(state) {
     if (guideImage.getAttribute("src") !== source) guideImage.src = source;
   }
   byId("guide-star-status").textContent = state.guide_star_message ?? "Waiting for a fibre-centred frame…";
-  if (!state.guide_star) {
-    guideStarImage.hidden = true;
-    guideStarImage.removeAttribute("src");
-  } else if (guidingPanel.open) {
-    const source = `/api/guide-star/${state.guide_star}`;
-    if (guideStarImage.getAttribute("src") !== source) guideStarImage.src = source;
-  }
-  if (guidingPanel.open && !document.hidden && availableDevices.includes("guiding")
+  renderGuideCrop(guideStarImage, state.guide_star, guidingPanel.open);
+  renderGuideCrop(statusGuideImage, state.guide_star, !statusDetails.hidden);
+  byId("status-guide-state").textContent = state.guide_app_state ?? "—";
+  byId("status-guide-caption").textContent = state.guide_snapshot_message || state.guide_star_message || "";
+  if (watchingGuide()
       && !guideBusy && !commandPending && Date.now() >= nextGuideRefresh) {
     nextGuideRefresh = Date.now() + guideRefreshMs;
     fetch("/api/guiding", {
@@ -593,8 +674,10 @@ function renderGuiding(state) {
 
 guideImage.addEventListener("load", () => { guideImage.hidden = false; });
 guideImage.addEventListener("error", () => { guideImage.hidden = true; });
-guideStarImage.addEventListener("load", () => { guideStarImage.hidden = false; });
-guideStarImage.addEventListener("error", () => { guideStarImage.hidden = true; });
+for (const image of [guideStarImage, statusGuideImage]) {
+  image.addEventListener("load", () => { if (image.hasAttribute("src")) image.hidden = false; });
+  image.addEventListener("error", () => { image.hidden = true; });
+}
 
 const guideActionButtons = guidingPanel.querySelectorAll("[data-guide-action]");
 for (const button of guideActionButtons) {
@@ -914,8 +997,7 @@ async function refresh() {
     byId("connection").textContent = `Connection lost · Last update ${clock(lastUpdate)}`;
   } finally {
     updateDeviceButtons();
-    const watchingGuide = guidingPanel.open && !document.hidden && availableDevices.includes("guiding");
-    setTimeout(refresh, watchingGuide ? guideRefreshMs : 2000);
+    setTimeout(refresh, watchingGuide() ? guideRefreshMs : 2000);
   }
 }
 

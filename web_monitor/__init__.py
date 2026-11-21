@@ -9,7 +9,8 @@ from io import BytesIO
 import json
 import math
 from pathlib import Path
-from threading import Lock, Thread
+from threading import Event, Lock, Thread
+from time import time
 from uuid import uuid4
 
 
@@ -340,3 +341,63 @@ def start(monitor, host, port=8765, *, commands=None):
     server = ThreadingHTTPServer((host, port), handler)
     Thread(target=server.serve_forever, daemon=True).start()
     return server
+
+
+def read_pointing(status):
+    if status.get("mount.is_connected", "").lower() != "true":
+        return None
+
+    def number(key):
+        try:
+            value = float(status[key])
+            return value if math.isfinite(value) else None
+        except (KeyError, ValueError, TypeError):
+            return None
+
+    ra = number("mount.ra_apparent_hours")
+    lst = number("site.lmst_hours")
+    return {
+        "alt": number("mount.altitude_degs"),
+        "az": number("mount.azimuth_degs"),
+        "ra": ra,
+        "dec": number("mount.dec_apparent_degs"),
+        "ha": (lst - ra + 12) % 24 - 12 if lst is not None and ra is not None else None,
+    }
+
+
+def read_clarity(path):
+    if path is None:
+        return {"message": "Not configured"}
+    try:
+        with path.open(encoding="ascii") as source:
+            fields = source.readline(1024).split()
+        modern = fields[3] in ("K", "M")
+        sky = float(fields[4 if modern else 3])
+        since = float(fields[13 if modern else 8])
+        if fields[2] not in ("C", "F") or not math.isfinite(since) or since < 0:
+            return {"message": "Invalid reading"}
+        if time() - path.stat().st_mtime > 30 or since > 30:
+            return {"message": "Stale"}
+        if not math.isfinite(sky) or sky in (-999, -998, 999):
+            return {"message": "Invalid reading"}
+        return {"sky_delta": sky if fields[2] == "C" else sky * 5 / 9}
+    except (OSError, UnicodeError, ValueError, IndexError):
+        return {"message": "Unavailable"}
+
+
+def start_telemetry(monitor, get_mount_status, clarity_file):
+    stop = Event()
+    path = Path(clarity_file) if clarity_file else None
+
+    def poll():
+        while not stop.is_set():
+            try:
+                pointing = read_pointing(get_mount_status())
+            except Exception:
+                pointing = None
+            weather = read_clarity(path)
+            monitor.publish(pointing=pointing, weather=weather)
+            stop.wait(2)
+
+    Thread(target=poll, name="web-status-telemetry", daemon=True).start()
+    return stop

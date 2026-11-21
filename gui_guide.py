@@ -268,6 +268,11 @@ class GuideTab(ttk.Frame):
             from astropy.io import fits
             from PIL import Image
 
+            try:
+                guide_state = self.guide_preview_call("get_app_state")
+            except Exception:
+                guide_state = None
+            report(self.context, "publish", guide_app_state=guide_state if isinstance(guide_state, str) else None)
             result = self.guide_preview_call("save_image")
             filename = result.get("filename") if isinstance(result, dict) else None
             if not isinstance(filename, str) or not Path(filename).is_absolute():
