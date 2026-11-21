@@ -220,6 +220,9 @@ class GuideTab(ttk.Frame):
         self.run_threaded(command)
         return "Guide command queued."
 
+    def _publish_guide_step(self, ra, dec):
+        report(self.context, "guide_step", ra, dec)
+
     def guide_preview_call(self, method, params=None):
         request = {"jsonrpc": "2.0", "method": method, "id": 1}
         if params is not None:
@@ -391,7 +394,7 @@ class GuideTab(ttk.Frame):
         try:
             if self.phd is None:
                 self.log("Connecting to PHD2...")
-                self.phd = Guider(self.host)
+                self.phd = Guider(self.host, guide_step=self._publish_guide_step)
                 self.phd.Connect()
                 self.log("Connected to PHD2.")
                 return True
@@ -402,7 +405,7 @@ class GuideTab(ttk.Frame):
                 except Exception as e:
                     if "ConnectionRefusedError" in str(e) or "ConnectionResetError" in str(e):
                         self.log("PHD2 connection lost, attempting reconnect...")
-                        self.phd = Guider(self.host)
+                        self.phd = Guider(self.host, guide_step=self._publish_guide_step)
                         self.phd.Connect()
                         self.log("Reconnected to PHD2.")
                         return True

@@ -215,6 +215,7 @@ def update_status_header(context, widgets, sync_blink):
             cooler_power = safe_get(cam, "CoolerPower") if cam_connected else None
             report(context, "publish", updated=utc_now(), hardware={
                 "camera": cam_connected, "telescope": tel_connected, "dome": dome_connected,
+                "telescope_parked": safe_get(tel, "AtPark") if tel_connected else None,
                 "sync": sync, "slewing": bool(dome_slewing),
                 "temperature": float(t_str) if t_str != "--" and t_str not in ("nan", "inf", "-inf") else None,
                 "cooler": cooler_on,

@@ -1,20 +1,5 @@
 import { byId, clock, element } from "./dom.js";
-export const statusDetails = byId("status-details");
-const statusDetailsToggle = byId("status-details-toggle");
-statusDetailsToggle.addEventListener("click", () => {
-  statusDetails.hidden = !statusDetails.hidden;
-  byId(statusDetails.hidden ? "status-acquisition-compact" : "status-camera").append(byId("status-exposure"));
-  statusDetailsToggle.textContent = statusDetails.hidden ? "Show Details" : "Hide Details";
-  statusDetailsToggle.setAttribute("aria-expanded", String(!statusDetails.hidden));
-});
-
 const runLog = byId("recent-panel");
-const runLogToggle = byId("status-log-toggle");
-runLogToggle.addEventListener("click", () => { runLog.open = !runLog.open; });
-runLog.addEventListener("toggle", () => {
-  runLogToggle.textContent = runLog.open ? "Hide Run Log" : "Show Run Log";
-  runLogToggle.setAttribute("aria-expanded", String(runLog.open));
-});
 
 function sexagesimal(value, places, signed, degrees = false) {
   if (value == null) return "—";
@@ -29,9 +14,6 @@ function sexagesimal(value, places, signed, degrees = false) {
 
 function renderPointingAndWeather(state) {
   const pointing = state.pointing ?? {};
-  byId("observatory-local").textContent = state.local_time ?? "—";
-  byId("observatory-utc").textContent = state.utc_time ?? "—";
-  byId("observatory-lst").textContent = sexagesimal(pointing.lst, 0, false);
   for (const field of ["alt", "az"]) {
     byId(`point-${field}`).textContent = pointing[field] == null ? "—" : `${pointing[field].toFixed(2)}°`;
   }
@@ -88,16 +70,40 @@ function renderRunLog(events) {
     list.scrollTop = previousTop + formerFirst.offsetTop - list.firstElementChild.offsetTop;
   }
 }
-export function renderSystemStatus(state, {activity, exposure, exposureText, activeTarget}) {
+const lastImage = byId("last-image");
+const thumbnail = byId("last-image-thumbnail");
+thumbnail.addEventListener("load", () => { lastImage.hidden = false; });
+thumbnail.addEventListener("error", () => {
+  lastImage.hidden = true;
+  thumbnail.removeAttribute("src");
+});
+
+export function renderSystemStatus(state, {activity, exposure, target, position, total, reference}) {
   renderPointingAndWeather(state);
-  byId("status-acquisition").textContent = exposure
-    ? [activeTarget !== exposure.label ? activeTarget : null, exposureText].filter(Boolean).join(" · ")
+  const test = state.test_exposure;
+  const label = exposure?.label;
+  const kind = label === "Tungsten" || label === "Thorium" ? label : reference ? "Reference" : "Science";
+  byId("status-target").textContent = test ? "Test exposure" : target ?? "";
+  byId("status-acquisition").textContent = test ? "Preview only" : exposure
+    ? [kind, position == null ? null : `Target ${position} of ${total}`, `Frame ${exposure.index} of ${exposure.total}`].filter(Boolean).join(" · ")
     : activity;
   const progress = byId("status-progress");
-  progress.hidden = !exposure;
-  if (exposure) {
-    progress.max = Math.max(1, exposure.seconds);
-    progress.value = exposure.elapsed;
+  const elapsed = test ? Math.max(0, (Date.parse(state.server_time) - Date.parse(test.started)) / 1000) : exposure?.elapsed;
+  const duration = test?.seconds ?? exposure?.seconds;
+  progress.hidden = duration == null;
+  if (duration != null) {
+    progress.max = Math.max(1, duration);
+    progress.value = Math.min(elapsed, duration);
+  }
+  byId("status-exposure-time").textContent = duration == null ? "" :
+    test && elapsed >= duration ? "Reading image…" : `${Math.floor(elapsed)} / ${duration} s`;
+  if (state.viewer) {
+    const source = `/api/thumbnail/${state.viewer.version}`;
+    if (thumbnail.getAttribute("src") !== source) {
+      lastImage.hidden = true;
+      thumbnail.src = source;
+      byId("last-image-label").textContent = state.viewer.label ?? "";
+    }
   }
   renderRunLog(state.events);
 }

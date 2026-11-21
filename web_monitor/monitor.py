@@ -4,6 +4,7 @@ from collections import deque
 from datetime import datetime, timezone
 from io import BytesIO
 import json
+import math
 from threading import Lock
 from uuid import uuid4
 
@@ -12,8 +13,10 @@ class Monitor:
         self.lock = Lock()
         self.state = {"hardware": {}, "plan": [], "run": None}
         self.events = deque(maxlen=40)
+        self.guide_events = deque(maxlen=40)
+        self.guide_errors = deque(maxlen=60)
         self._viewer_pixels = None
-        self._viewer_png = None
+        self._viewer_png = {}
         self._guide_png = None
         self._guide_star_png = None
 
@@ -36,30 +39,33 @@ class Monitor:
         with self.lock:
             return self._guide_png if self.state.get("guide_frame") == version else None
 
-    def viewer_frame(self, pixels, max_adu):
+    def viewer_frame(self, pixels, max_adu, label=""):
         with self.lock:
             version = uuid4().hex
-            self.state["viewer"] = {"version": version, "max_adu": max_adu}
+            self.state["viewer"] = {"version": version, "max_adu": max_adu, "label": "Test image" if label == "preview" else label}
             self._viewer_pixels = pixels
-            self._viewer_png = None
+            self._viewer_png = {}
 
-    def viewer_png(self, version):
+    def viewer_png(self, version, *, thumbnail=False):
         from PIL import Image
 
         with self.lock:
             frame = self.state.get("viewer")
             if frame is None or frame["version"] != version:
                 return None
-            if self._viewer_png is not None:
-                return self._viewer_png
+            if thumbnail in self._viewer_png:
+                return self._viewer_png[thumbnail]
             pixels = self._viewer_pixels
 
         output = BytesIO()
-        Image.fromarray(pixels).save(output, format="PNG")
+        image = Image.fromarray(pixels)
+        if thumbnail:
+            image.thumbnail((380, 140))
+        image.save(output, format="PNG")
         png = output.getvalue()
         with self.lock:
             if self.state.get("viewer") is frame:
-                self._viewer_png = png
+                self._viewer_png[thumbnail] = png
         return png
 
     def publish(self, **values):
@@ -74,6 +80,7 @@ class Monitor:
                 "mode": "Hour angle" if smart else "List order",
                 "activity": "Starting batch",
                 "active": None,
+                "target_number": 0,
                 "exposure": None,
                 "running": True,
             }
@@ -82,6 +89,8 @@ class Monitor:
         with self.lock:
             run = self.state["run"]
             if run and run["running"]:
+                if active is not None and active != run["active"]:
+                    run["target_number"] += 1
                 run.update(activity=message, active=active, exposure=None)
 
     def exposure(self, **progress):
@@ -133,10 +142,24 @@ class Monitor:
         with self.lock:
             self.events.append({"time": utc_now(), "message": str(message)})
 
+    def guide_log(self, message):
+        with self.lock:
+            self.guide_events.append({"time": utc_now(), "message": str(message)})
+
+    def guide_step(self, ra, dec):
+        with self.lock:
+            if ra is None and dec is None:
+                self.guide_errors.clear()
+            elif all(isinstance(value, (int, float)) and math.isfinite(value) for value in (ra, dec)):
+                self.guide_errors.append((ra, dec))
+
     def snapshot(self):
         with self.lock:
             now = datetime.now(timezone.utc)
             return json.dumps(dict(self.state, events=list(self.events),
+                                   guide_events=list(self.guide_events),
+                                   guide_errors=list(self.guide_errors),
+                                   server_time=now.isoformat(),
                                    local_time=now.astimezone().strftime("%H:%M:%S"),
                                    utc_time=now.strftime("%H:%M:%S")), allow_nan=False).encode()
 

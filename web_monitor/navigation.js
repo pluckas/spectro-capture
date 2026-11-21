@@ -38,8 +38,15 @@ const workspacePanels = byId("workspace-panels");
 for (const button of document.querySelectorAll("[data-open-panel]")) {
   button.addEventListener("click", () => {
     const panel = byId(button.dataset.openPanel);
-    if (panel.parentElement === workspacePanels && workspacePanels.firstElementChild !== panel) {
-      workspacePanels.prepend(panel);
+    const workspacePanel = panel.closest(".workspace-panel");
+    if (workspacePanel?.parentElement === workspacePanels) {
+      if (workspacePanels.firstElementChild !== workspacePanel) workspacePanels.prepend(workspacePanel);
+      workspacePanel.open = true;
+    }
+    const selected = button.closest("nav") ? button : document.querySelector('nav [data-open-panel="fits-panel"]');
+    for (const item of document.querySelectorAll("nav [data-open-panel]")) {
+      if (item === selected) item.setAttribute("aria-current", "true");
+      else item.removeAttribute("aria-current");
     }
     panel.open = true;
     const summary = panel.querySelector("summary");

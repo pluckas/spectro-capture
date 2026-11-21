@@ -212,6 +212,8 @@ class AppContext:
         self.guide_log(msg)
     
     def guide_log(self, msg):
+        if str(msg).strip():
+            report(self, "guide_log", msg)
         try:
             # Always show everything in the Guide tab (run-time UI)
             if hasattr(self, "_guide_log_callback") and self._guide_log_callback:

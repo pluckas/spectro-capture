@@ -198,6 +198,7 @@ function openTargetEditor(edit = {}, name = "", targetRow = null, reference = nu
   const resultId = `target-${kind}-result`;
   const row = byId(`target-${kind}-template`).content.firstElementChild.cloneNode(true);
   const form = row.querySelector("form");
+  if (edit.id) form.querySelectorAll("[data-quick-target]").forEach((label) => label.remove());
   const values = reference ?? {name, ra: edit.ra ?? "", dec: edit.dec ?? ""};
   for (const [field, value] of Object.entries(values)) {
     form.elements.namedItem(field).value = value;
@@ -304,16 +305,8 @@ export function renderBatch(state) {
   byId("mode").textContent = mode;
   const activity = session.batchStopping ? "Stopping…" :
     session.batchRunning ? (run?.running ? run.activity : "Finishing batch…") : "Idle";
-  byId("activity").textContent = activity;
   byId("batch-commands").hidden = !session.availableDevices.includes("batch");
   byId("batch-target-count").textContent = `${enabledTargets} enabled ${enabledTargets === 1 ? "target" : "targets"}`;
-  byId("exposure").hidden = byId("progress").hidden = !exposure;
-  if (exposure) {
-    byId("exposure").textContent =
-      `${exposure.label} · Frame ${exposure.index} of ${exposure.total} · ${exposure.elapsed} of ${exposure.seconds} s`;
-    byId("progress").max = Math.max(1, exposure.seconds);
-    byId("progress").value = exposure.elapsed;
-  }
 
   // Retain the completed run until the desktop plan changes.
   const samePlan = run && state.plan.length === run.rows.length &&
@@ -321,7 +314,12 @@ export function renderBatch(state) {
   const rows = run?.running || samePlan ? run.rows : state.plan;
   byId("targets").textContent = run?.running ? "Active batch targets" : "Targets";
   renderTargets(rows, run, state.target_edits ?? []);
-  return {activity, exposure, exposureText: byId("exposure").textContent, activeTarget: run?.rows?.[run.active]?.target};
+  const active = run?.running ? run.active : null;
+  const row = active == null ? null : run.rows[active];
+  const position = row ? run.target_number : null;
+  const total = run?.rows.filter((target) => target.enabled).length;
+  const reference = run?.activity?.startsWith("Observing reference ");
+  return {activity, exposure, target: reference ? row?.reference : row?.target, position, total, reference};
 }
 
 export function updateBatchControls() {
@@ -378,7 +376,10 @@ for (const [id, field, property] of [
   }
 }
 
-byId("batch-add-target").addEventListener("click", () => openTargetEditor());
+byId("batch-add-target").addEventListener("click", () => {
+  byId("targets-panel").open = true;
+  openTargetEditor();
+});
 byId("batch-clear-targets").addEventListener("click", () => {
   const revision = targetListRevision;
   if (window.confirm(`Clear all ${targetCount} targets from the current batch?`)) {

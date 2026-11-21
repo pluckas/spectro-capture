@@ -26,6 +26,7 @@ Key features:
 - Integrated with AppContext for shared logging and file access
 """
 
+from pathlib import Path
 import tkinter as tk
 from tkinter import ttk
 from astropy.io import fits
@@ -79,7 +80,7 @@ class ViewerTab(ttk.Frame):
         self.max_adu_label.config(text=f"Max ADU: {max_adu}")
 
         self._draw_image()
-        report(self.context, "viewer_frame", self._raw, max_adu)
+        report(self.context, "viewer_frame", self._raw, max_adu, Path(path).stem)
 
     def _draw_image(self):
         if self._raw is None:

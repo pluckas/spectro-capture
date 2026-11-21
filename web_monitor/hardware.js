@@ -7,27 +7,7 @@ let domeSyncRunning = false;
 const fitsPanel = byId("fits-panel");
 const fitsImage = byId("fits-image");
 const fitsStatus = byId("fits-status");
-const testProgress = byId("camera-test-progress");
 let viewerFrame;
-let testExposure;
-
-function updateTestProgress() {
-  if (!testExposure) return;
-  const {started, seconds, previousFrame} = testExposure;
-  const elapsed = (performance.now() - started) / 1000;
-  const frameReady = viewerFrame && viewerFrame.version !== previousFrame;
-  const result = byId("camera-test-status");
-  if (frameReady || elapsed >= seconds + 135) {
-    testExposure = undefined;
-    testProgress.hidden = true;
-    result.textContent = frameReady ? "" : "No new preview received. Check the activity log.";
-    updateHardwareControls();
-    return;
-  }
-  testProgress.value = Math.min(99, 100 * elapsed / seconds);
-  if (elapsed >= seconds && !result.textContent) result.textContent = "Waiting for image…";
-  setTimeout(updateTestProgress, 100);
-}
 
 function renderViewer() {
   if (!fitsPanel.open || !viewerFrame) return;
@@ -124,25 +104,26 @@ export function renderHardware(state) {
     if (shutter === "Closed") shutterClass = "status-alert";
     if (shutter === "Opening" || shutter === "Closing") shutterClass = "status-moving";
   }
+  const temperature = h.temperature == null ? null : `${h.temperature.toFixed(1)} °C`;
+  const cooler = h.cooler === true
+    ? [temperature, h.setpoint == null ? null : `set ${h.setpoint} °C`].filter(Boolean).join(" / ") || "On"
+    : [onOff(h.cooler), temperature].filter(Boolean).join(" · ");
   const status = [
     ["shutter", h.dome ? (shutter && shutter !== "---" ? shutter : "Unknown") : "—", shutterClass],
     ["dome-sync", h.slewing ? "Dome moving" : h.dome ? onOff(h.sync) : "—",
       h.dome && !h.slewing && h.sync === false ? "status-alert" : ""],
-    ["cooler", h.cooler && h.setpoint != null ? `On · set ${h.setpoint} °C` : onOff(h.cooler),
-      h.cooler === false ? "status-alert" : ""],
-    ["temperature", h.temperature == null ? "—" : `${h.temperature.toFixed(1)} °C`],
-    ["power", h.cooler_power == null ? "—" : `${h.cooler_power.toFixed(0)}%`],
-    ["binning", h.binning ?? "—"],
+    ["cooler", cooler, h.cooler === false ? "status-alert" : ""],
   ];
   renderDevices(state);
+  const pointing = state.pointing;
+  const mount = pointing?.slewing ? "Slewing" : h.telescope_parked === true ? "Parked"
+    : pointing?.tracking === true ? "Tracking" : pointing?.tracking === false ? "Not tracking" : null;
+  if (h.telescope && mount) byId("telescope-state").textContent += ` · ${mount}`;
   for (const [id, value, statusClass = ""] of status) {
     const reading = byId(`${id}-reading`);
     reading.textContent = value;
     reading.className = statusClass;
   }
-  byId("status-camera-connection").textContent = connected(h.camera);
-  byId("status-camera-binning").textContent = byId("binning-reading").textContent;
-  byId("status-camera-temp").textContent = byId("temperature-reading").textContent;
   byId("slew-result").textContent = session.telescopeSlewActive
     ? "Resolving or slewing…"
     : state.telescope_slew_result ?? "";
@@ -164,7 +145,7 @@ export function updateHardwareControls() {
   }
   byId("camera-binning").disabled = !canCommand("camera");
   byId("camera-test-start").disabled =
-    !canCommand("camera") || !session.hardwareState.camera || session.batchRunning || session.acquisitionBusy || session.telescopeSlewActive || !!testExposure;
+    !canCommand("camera") || !session.hardwareState.camera || session.batchRunning || session.acquisitionBusy || session.telescopeSlewActive;
   const domeDisabled = !canCommand("dome") || !session.hardwareState.dome;
   for (const button of domeActions) {
     const positionCommand = ["home", "park"].includes(button.dataset.action);
@@ -222,12 +203,7 @@ byId("camera-test-image").addEventListener("submit", async (event) => {
     return;
   }
   const seconds = exposure.valueAsNumber;
-  const previousFrame = viewerFrame?.version;
-  byId("camera-test-status").textContent = "";
   if (await sendDeviceCommand("camera", {action: "test_image", seconds})) {
-    testExposure = {started: performance.now(), seconds, previousFrame};
-    testProgress.hidden = false;
-    updateTestProgress();
     if (!fitsPanel.open) document.querySelector('[data-open-panel="fits-panel"]').click();
   }
 });

@@ -19,6 +19,8 @@ def read_pointing(status):
     ra = number("mount.ra_apparent_hours")
     return {
         "lst": lst,
+        "tracking": status.get("mount.is_tracking") == "true" if "mount.is_tracking" in status else None,
+        "slewing": status.get("mount.is_slewing") == "true" if "mount.is_slewing" in status else None,
         "alt": number("mount.altitude_degs"),
         "az": number("mount.azimuth_degs"),
         "ra": ra,

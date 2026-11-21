@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="red">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Spectro Capture · Batch Monitor</title>
+  <title>Spectro Capture · Observe</title>
   <link rel="stylesheet" href="/style.css">
   <script type="module" src="/app.js"></script>
 </head>
@@ -11,7 +11,7 @@
   <aside>
     <strong>Spectro Capture</strong>
     <nav aria-label="Observatory sections">
-      <button type="button" data-open-panel="batch-panel" aria-controls="batch-panel">Batch Runner</button>
+      <button type="button" data-open-panel="batch-panel" aria-controls="batch-panel" aria-current="true">Observe</button>
       <button type="button" data-open-panel="targets-panel" aria-controls="targets-panel">Targets</button>
       <button type="button" data-open-panel="recent-panel" aria-controls="recent-panel">Status Log</button>
       <button type="button" data-open-panel="fits-panel" aria-controls="fits-panel">FITS Viewer</button>
@@ -24,8 +24,8 @@
   <dialog id="theme-dialog" aria-labelledby="theme-title">
     <h2 id="theme-title">Theme</h2>
     <div class="theme-options" role="group" aria-label="Available themes">
-      <button type="button" data-theme-choice="yellow" aria-pressed="true">Yellow</button>
-      <button type="button" data-theme-choice="red" aria-pressed="false">Red</button>
+      <button type="button" data-theme-choice="yellow" aria-pressed="false">Yellow</button>
+      <button type="button" data-theme-choice="red" aria-pressed="true">Red</button>
       <button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
       <button type="button" data-theme-choice="blue" aria-pressed="false">Blue</button>
     </div>
@@ -37,11 +37,7 @@
       <p id="connection" role="status">Connecting to Spectro Capture…</p>
     </header>
     <section id="system-status" aria-labelledby="system-status-title">
-      <div class="system-status-heading">
-        <h2 id="system-status-title">System Status</h2>
-        <button id="status-details-toggle" type="button" aria-controls="status-details" aria-expanded="false">Show Details</button>
-        <button id="status-log-toggle" type="button" aria-controls="recent-panel" aria-expanded="false">Show Run Log</button>
-      </div>
+      <h2 id="system-status-title" class="visually-hidden">System Status</h2>
     <dl id="hardware" aria-label="Observatory status">
       <div>
         <dt>
@@ -61,9 +57,6 @@
       <div><dt>Shutter</dt><dd id="shutter-reading">—</dd></div>
       <div><dt>Dome sync</dt><dd id="dome-sync-reading">—</dd></div>
       <div><dt>Cooler</dt><dd id="cooler-reading">—</dd></div>
-      <div><dt>Temp</dt><dd id="temperature-reading">—</dd></div>
-      <div><dt>Power</dt><dd id="power-reading">—</dd></div>
-      <div><dt>Binning</dt><dd id="binning-reading">—</dd></div>
       <div>
         <dt><span id="lamps-label">Lamp Control</span><button id="lamps-toggle" class="hardware-toggle" type="button" aria-controls="lamps-panel" aria-expanded="false" hidden>Lamp Control</button></dt>
         <dd id="lamps-state">—</dd>
@@ -88,8 +81,6 @@
         <label>Exposure (s) <input id="camera-test-seconds" type="number" min="0" step="any" value="1" required></label>
         <button id="camera-test-start" type="submit" disabled>Take Test Image</button>
       </form>
-      <progress id="camera-test-progress" aria-label="Estimated test exposure progress" max="100" hidden></progress>
-      <p id="camera-test-status" role="status"></p>
       <p id="camera-result" role="status"></p>
     </section>
     <section id="telescope-panel" class="hardware-panel" aria-label="Telescope controls" hidden>
@@ -129,42 +120,45 @@
       <button type="button" data-action="thorium" aria-pressed="false" disabled>Thorium</button>
       <button type="button" data-action="off" aria-pressed="false" disabled>Clear All</button>
     </section>
-      <div id="status-details" hidden>
-        <section>
-          <h3>Observatory</h3>
-          <dl class="pointing">
-            <dt>Local</dt><dd id="observatory-local">—</dd>
-            <dt>UTC</dt><dd id="observatory-utc">—</dd>
-            <dt>LST</dt><dd id="observatory-lst">—</dd>
-            <dt>Telescope Alt</dt><dd id="point-alt">—</dd>
-            <dt>Az</dt><dd id="point-az">—</dd>
-            <dt>RA</dt><dd id="point-ra">—</dd>
-            <dt>Dec</dt><dd id="point-dec">—</dd>
-            <dt>Hour angle</dt><dd id="point-ha">—</dd>
-            <dt>Sky temp (ΔT)</dt><dd id="status-weather">—</dd>
-            <dt>Sky condition</dt><dd id="status-sky-condition">—</dd>
-          </dl>
+      <div class="pointing-strip">
+        <strong>Pointing</strong>
+        <span>Alt <b id="point-alt">—</b></span>
+        <span>Az <b id="point-az">—</b></span>
+        <span>HA <b id="point-ha">—</b></span>
+        <span>RA <b id="point-ra">—</b></span>
+        <span>Dec <b id="point-dec">—</b></span>
+        <span class="sky-reading"><strong>Sky</strong> <b id="status-sky-condition">—</b> <span id="status-weather">—</span></span>
+      </div>
+      <div id="status-details" class="dashboard">
+        <section class="acquisition">
+          <h3>Acquisition</h3>
+          <p id="status-target"></p>
+          <p id="status-acquisition">Waiting for status</p>
+          <div class="exposure-progress">
+            <progress id="status-progress" aria-label="Current exposure" hidden></progress>
+            <span id="status-exposure-time"></span>
+          </div>
+          <button id="last-image" type="button" data-open-panel="fits-panel" aria-controls="fits-panel" hidden>
+            <img id="last-image-thumbnail" alt="">
+            <span>Last image <small id="last-image-label"></small></span>
+          </button>
         </section>
-        <section id="status-camera">
-          <h3>Camera</h3>
-          <dl class="pointing">
-            <dt>Status</dt><dd id="status-camera-connection">—</dd>
-            <dt>Binning</dt><dd id="status-camera-binning">—</dd>
-            <dt>Temp</dt><dd id="status-camera-temp">—</dd>
-          </dl>
-        </section>
-        <section>
+        <section class="guide-overview">
           <h3>Guiding</h3>
           <p id="status-guide-state"></p>
-          <img id="status-guide-image" alt="Guide camera cropped around the saved fibre position" hidden>
-          <p id="status-guide-caption"></p>
+          <div class="guide-detail">
+            <ol id="guide-events" aria-label="Recent guiding events"></ol>
+            <div class="guide-visuals">
+              <img id="status-guide-image" alt="Fibre-centred guide frame" hidden>
+              <figure id="guide-error" hidden>
+                <figcaption>Guide error · px</figcaption>
+                <canvas id="guide-error-chart" width="300" height="112" role="img" aria-label="Recent RA and Dec guide errors in pixels"></canvas>
+                <div class="guide-legend"><span>RA</span><span>Dec</span><span id="guide-error-scale"></span></div>
+              </figure>
+              <p id="status-guide-caption"></p>
+            </div>
+          </div>
         </section>
-      </div>
-      <div id="status-acquisition-compact">
-        <div id="status-exposure">
-          <p id="status-acquisition">Waiting for status</p>
-          <progress id="status-progress" aria-label="Current exposure" hidden></progress>
-        </div>
       </div>
       <details id="recent-panel">
         <summary>Run Log</summary>
@@ -173,88 +167,89 @@
     </section>
     <div id="workspace-panels">
       <details id="batch-panel" class="workspace-panel" open>
-        <summary>Batch Runner</summary>
+        <summary>Observe</summary>
         <div class="workspace-panel-body">
-          <p id="mode"></p>
-          <h2 id="activity">Waiting for status</h2>
-          <p id="exposure" hidden></p>
-          <progress id="progress" aria-label="Current exposure" hidden></progress>
-          <div id="batch-commands" class="batch-commands" hidden>
-            <button id="batch-run" type="button" disabled>Run</button>
-            <button id="batch-stop" type="button" disabled>Stop</button>
-            <span id="batch-target-count"></span>
-            <details id="batch-options">
-              <summary>Batch options</summary>
-              <div id="batch-schedule">
-                <label><input id="schedule-enabled" type="checkbox"> Enable Smart HA Scheduling</label>
-                <label>HA Min (hrs) <input id="schedule-ha-min" type="number" min="-6" max="6" step="any" required></label>
-                <label>HA Max (hrs) <input id="schedule-ha-max" type="number" min="-6" max="6" step="any" required></label>
-                <label>Start (observatory local time) <input id="schedule-start" type="text" placeholder="HH:MM" maxlength="5"></label>
+          <div class="observe-toolbar">
+            <div id="batch-csv-controls" class="batch-commands" hidden>
+              <button id="batch-add-target" type="button" disabled>Quick target</button>
+              <button id="batch-load-csv" type="button" disabled>Load CSV</button>
+              <input id="batch-csv-file" type="file" accept=".csv,text/csv" hidden>
+              <button id="batch-download-csv" type="button" disabled>Download CSV</button>
+              <button id="batch-clear-targets" type="button" disabled>Clear</button>
+              <p id="batch-csv-result" role="status"></p>
+            </div>
+            <div id="batch-commands" class="batch-commands" hidden>
+              <span id="batch-target-count"></span>
+              <span id="mode"></span>
+              <button id="batch-run" type="button" disabled>Run</button>
+              <button id="batch-stop" type="button" disabled>Stop</button>
+            </div>
+          </div>
+          <details id="batch-options">
+            <summary>Batch options</summary>
+            <div id="batch-schedule">
+              <label><input id="schedule-enabled" type="checkbox"> Enable Smart HA Scheduling</label>
+              <label>HA Min (hrs) <input id="schedule-ha-min" type="number" min="-6" max="6" step="any" required></label>
+              <label>HA Max (hrs) <input id="schedule-ha-max" type="number" min="-6" max="6" step="any" required></label>
+              <label>Start (observatory local time) <input id="schedule-start" type="text" placeholder="HH:MM" maxlength="5"></label>
+            </div>
+            <fieldset class="batch-option-group">
+              <legend>Calibration</legend>
+              <label><input id="schedule-pre-calib" type="checkbox"> Run Calibration at First Target</label>
+              <label><input id="schedule-shutdown-calib" type="checkbox"> Run Calibration After Batch</label>
+            </fieldset>
+            <fieldset class="batch-option-group">
+              <legend>Optional functions</legend>
+              <label><input id="schedule-park" type="checkbox"> Park Telescope After Batch</label>
+              <label><input id="schedule-close-dome" type="checkbox"> Close Dome After Batch</label>
+              <label><input id="schedule-warm-camera" type="checkbox"> Warm Camera to +5°C After Batch</label>
+            </fieldset>
+          </details>
+          <p id="batch-result" role="status"></p>
+          <details id="targets-panel" open>
+            <summary id="targets">Targets</summary>
+            <div class="workspace-panel-body">
+              <div class="table-scroll" tabindex="0" role="region" aria-label="Batch target table">
+                <table>
+                  <thead><tr><th aria-label="Reorder"></th><th>Target</th><th>Start (UT)</th><th>Exposure</th><th>Frames</th>
+                    <th>Calibration</th><th>Enabled</th><th>Reference</th><th>Status</th></tr></thead>
+                  <tbody id="rows"></tbody>
+                </table>
               </div>
-              <fieldset class="batch-option-group">
-                <legend>Calibration</legend>
-                <label><input id="schedule-pre-calib" type="checkbox"> Run Calibration at First Target</label>
-                <label><input id="schedule-shutdown-calib" type="checkbox"> Run Calibration After Batch</label>
-              </fieldset>
-              <fieldset class="batch-option-group">
-                <legend>Optional functions</legend>
-                <label><input id="schedule-park" type="checkbox"> Park Telescope After Batch</label>
-                <label><input id="schedule-close-dome" type="checkbox"> Close Dome After Batch</label>
-                <label><input id="schedule-warm-camera" type="checkbox"> Warm Camera to +5°C After Batch</label>
-              </fieldset>
-            </details>
-            <p id="batch-result" role="status"></p>
-          </div>
-        </div>
-      </details>
-      <details id="targets-panel" class="workspace-panel" open>
-        <summary id="targets">Targets</summary>
-        <div class="workspace-panel-body">
-          <div id="batch-csv-controls" class="batch-commands" hidden>
-            <button id="batch-add-target" type="button" disabled>Add Target</button>
-            <button id="batch-load-csv" type="button" disabled>Load CSV</button>
-            <input id="batch-csv-file" type="file" accept=".csv,text/csv" hidden>
-            <button id="batch-download-csv" type="button" disabled>Download CSV</button>
-            <button id="batch-clear-targets" type="button" disabled>Clear</button>
-            <p id="batch-csv-result" role="status"></p>
-          </div>
-          <div class="table-scroll" tabindex="0" role="region" aria-label="Batch target table">
-            <table>
-              <thead><tr><th aria-label="Reorder"></th><th>Target</th><th>Start (UT)</th><th>Exposure</th><th>Frames</th>
-                <th>Calibration</th><th>Enabled</th><th>Reference</th><th>Status</th></tr></thead>
-              <tbody id="rows"></tbody>
-            </table>
-          </div>
-          <template id="target-identity-template">
-            <tr class="target-identity-row">
-              <td colspan="9">
-                <form class="target-identity-form">
-                  <label>Name <input name="name" maxlength="120" required></label>
-                  <label>RA <input name="ra" maxlength="40" placeholder="hh:mm:ss"></label>
-                  <label>Dec <input name="dec" maxlength="40" placeholder="±dd:mm:ss"></label>
-                  <button type="submit">Save Target</button>
-                  <button type="button" data-cancel>Cancel</button>
-                  <button type="button" data-remove hidden>Remove</button>
-                  <p role="status" class="target-edit-result" id="target-identity-result"></p>
-                </form>
-              </td>
-            </tr>
-          </template>
-          <template id="target-reference-template">
-            <tr class="target-identity-row">
-              <td colspan="9">
-                <form class="target-identity-form" aria-label="Reference star">
-                  <label>Star name <input name="name" maxlength="120" required></label>
-                  <label>Exposure (s) <input name="seconds" type="number" min="0" step="any" required></label>
-                  <label>Frames <input name="frames" type="number" min="1" step="1" required></label>
-                  <button type="submit">Save Reference</button>
-                  <button type="button" data-cancel>Cancel</button>
-                  <button type="button" data-remove hidden>Remove Reference</button>
-                  <p role="status" class="target-edit-result" id="target-reference-result"></p>
-                </form>
-              </td>
-            </tr>
-          </template>
+              <template id="target-identity-template">
+                <tr class="target-identity-row">
+                  <td colspan="9">
+                    <form class="target-identity-form">
+                      <label>Name <input name="name" maxlength="120" required></label>
+                      <label>RA <input name="ra" maxlength="40" placeholder="hh:mm:ss"></label>
+                      <label>Dec <input name="dec" maxlength="40" placeholder="±dd:mm:ss"></label>
+                      <label data-quick-target>Exposure (s) <input name="seconds" type="number" min="0.001" step="any" value="600" required></label>
+                      <label data-quick-target>Frames <input name="frames" type="number" min="1" step="1" value="3" required></label>
+                      <button type="submit">Save Target</button>
+                      <button type="button" data-cancel>Cancel</button>
+                      <button type="button" data-remove hidden>Remove</button>
+                      <p role="status" class="target-edit-result" id="target-identity-result"></p>
+                    </form>
+                  </td>
+                </tr>
+              </template>
+              <template id="target-reference-template">
+                <tr class="target-identity-row">
+                  <td colspan="9">
+                    <form class="target-identity-form" aria-label="Reference star">
+                      <label>Star name <input name="name" maxlength="120" required></label>
+                      <label>Exposure (s) <input name="seconds" type="number" min="0" step="any" required></label>
+                      <label>Frames <input name="frames" type="number" min="1" step="1" required></label>
+                      <button type="submit">Save Reference</button>
+                      <button type="button" data-cancel>Cancel</button>
+                      <button type="button" data-remove hidden>Remove Reference</button>
+                      <p role="status" class="target-edit-result" id="target-reference-result"></p>
+                    </form>
+                  </td>
+                </tr>
+              </template>
+            </div>
+          </details>
         </div>
       </details>
       <details id="calibration-panel" class="workspace-panel">
@@ -332,6 +327,10 @@
             <p id="guiding-result" role="status"></p>
             <p id="guide-message" role="status"></p>
           </div>
+          <details id="guide-log-panel">
+            <summary>Guide Log</summary>
+            <ol id="full-guide-events" tabindex="0"></ol>
+          </details>
         </div>
       </details>
       <details id="fits-panel" class="workspace-panel">

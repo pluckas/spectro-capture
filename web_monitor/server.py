@@ -78,8 +78,9 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_error(404)
                 return
             content_type = "image/png"
-        elif self.path.startswith("/api/viewer/"):
-            body = self.monitor.viewer_png(self.path.removeprefix("/api/viewer/"))
+        elif self.path.startswith(("/api/viewer/", "/api/thumbnail/")):
+            _, _, route, version = self.path.split("/", 3)
+            body = self.monitor.viewer_png(version, thumbnail=route == "thumbnail")
             if body is None:
                 self.send_error(404)
                 return

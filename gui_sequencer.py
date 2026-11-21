@@ -37,7 +37,7 @@ from pathlib import Path, PureWindowsPath
 from astropy.io import fits
 import numpy as np
 import utils
-from web_monitor import report
+from web_monitor import report, utc_now
 
 from utils import nightly_folder, next_run_folder, copy_latest_calib_to, lamp_on, lamp_off, SafeLogMixin
 from sequencer_logic import expose_and_save
@@ -562,6 +562,7 @@ class SequencerTab(ttk.Frame, SafeLogMixin):
         
                 # Start exposure
                 cam.StartExposure(float(exp), True)
+                report(self.context, "publish", test_exposure={"started": utc_now(), "seconds": float(exp)})
         
                 deadline = time.monotonic() + exp + 120
                 while not cam.ImageReady:
@@ -596,6 +597,7 @@ class SequencerTab(ttk.Frame, SafeLogMixin):
             except Exception as e:
                 self.safe_log(f"Single exposure error: {e}")
             finally:
+                report(self.context, "publish", test_exposure=None)
                 pythoncom.CoUninitialize()
                 self.after(0, self._on_run_finished)
     

@@ -210,8 +210,9 @@ class Guider:
     single_frame: SingleFrameResult | None = None
 
     def __init__(
-        self, hostname: str = "localhost", instance: int = 1, connect: bool = False
+        self, hostname: str = "localhost", instance: int = 1, connect: bool = False, *, guide_step=None
     ):
+        self.guide_step = guide_step
         self.hostname = hostname
         self.instance = instance
         if connect:
@@ -253,6 +254,8 @@ class Guider:
                 self.Version = ev["PHDVersion"]
                 self.PHDSubver = ev["PHDSubver"]
         elif e == "StartGuiding":
+            if self.guide_step is not None:
+                self.guide_step(None, None)
             self.accum_active = True
             self.accum_ra.Reset()
             self.accum_dec.Reset()
@@ -277,6 +280,9 @@ class Guider:
                 self.HFD = ev.get("HFD", self.HFD)
                 # ---------------------------------------------------------
 
+
+            if self.guide_step is not None:
+                self.guide_step(ev.get("RADistanceRaw"), ev.get("DECDistanceRaw"))
 
         elif e == "SettleBegin":
             self.accum_active = (

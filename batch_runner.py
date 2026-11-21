@@ -1132,6 +1132,7 @@ def run_single_target(context, target_name, exp_s, frames, include_calibs=True, 
 
     # Dual-range exposure flag
     context.on_fibre = False
+    report(context, "publish", guide_on_fibre=False)
 
     try:
         seq = getattr(context, "sequencer_tab", None)
@@ -1283,6 +1284,7 @@ def run_single_target(context, target_name, exp_s, frames, include_calibs=True, 
         #context.log(f"Auto Capture complete for {target_name}.")
 
     finally:
+        report(context, "publish", guide_on_fibre=False)
         try:
             if hasattr(context, "adaptive_stop"):
                 context.adaptive_stop.set()
@@ -1566,6 +1568,7 @@ def _fibre_settle(context, g):
                 if stable_reads >= required_stable:
                     context.guide_log("✅ Guider stable on fibre (within fine tolerance).")
                     context.on_fibre = True
+                    report(context, "publish", guide_on_fibre=True)
                     context.guide_log("🔒 Switching adaptive exposure to FIBRE mode (LOCK_MIN/LOCK_MAX).")
                     return True
             else:

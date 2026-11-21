@@ -687,7 +687,11 @@ class BatchTab(ttk.Frame):
                 return ""
             self.table.item(item, values=(name, *row[3:]))
         else:
-            item = self.table.insert("", "end", values=(name, "600", "3", "✓", "✓", "", "", "", ""))
+            seconds, frames = edit.get("seconds", "600"), edit.get("frames", "3")
+            if not isinstance(seconds, str) or not isinstance(frames, str):
+                raise ValueError("Enter exposure and frame count.")
+            self._validate_exposure_frames("Target", seconds, frames)
+            item = self.table.insert("", "end", values=(name, seconds, frames, "✓", "✓", "", "", "", ""))
         self._row_coords[item] = (ra, dec)
         report(self.context, "publish", run=None)
         self._publish_batch_status()
