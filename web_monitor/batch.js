@@ -93,7 +93,7 @@ function renderTargets(rows, run, edits) {
     } else if (target) {
       target.after(activeTargetEditor.row);
     } else {
-      table.append(activeTargetEditor.row);
+      table.prepend(activeTargetEditor.row);
     }
   }
 }
@@ -205,7 +205,7 @@ function openTargetEditor(edit = {}, name = "", targetRow = null, reference = nu
   }
   activeTargetEditor = {row, edit};
   if (targetRow) targetRow.after(row);
-  else byId("rows").append(row);
+  else byId("rows").prepend(row);
   const cancel = () => {
     closeTargetEditor();
     updateBatchControls();
@@ -392,7 +392,10 @@ csvPicker.addEventListener("change", async () => {
   const file = csvPicker.files[0];
   csvPicker.value = "";
   if (!file || byId("batch-load-csv").disabled) return;
-  if (targetCount && !window.confirm("Replace the current batch target list?")) return;
+  const confirmLoad = activeTargetEditor
+    ? "Discard the unsaved target edit and load the CSV?"
+    : "Replace the current batch target list?";
+  if ((targetCount || activeTargetEditor) && !window.confirm(confirmLoad)) return;
 
   let csv;
   try {
@@ -409,7 +412,10 @@ csvPicker.addEventListener("change", async () => {
     byId("batch-csv-result").textContent = "Cannot load the CSV right now. Try again when the batch is idle.";
     return;
   }
-  sendDeviceCommand("batch", {action: "load_csv", csv}, "batch-csv-result");
+  if (await sendDeviceCommand("batch", {action: "load_csv", csv}, "batch-csv-result")) {
+    closeTargetEditor();
+    updateBatchControls();
+  }
 });
 byId("batch-download-csv").addEventListener("click", () => {
   sendDeviceCommand("batch", {action: "download_csv"}, "batch-csv-result");
