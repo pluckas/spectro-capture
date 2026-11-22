@@ -93,7 +93,6 @@ export function renderGuiding(state) {
   renderGuideCrop(guideStarImage, state.guide_star, guidingPanel.open);
   const guideState = state.guide_app_state;
   const active = Boolean(guideState && guideState !== "Stopped");
-  byId("status-guide-detail").hidden = !active;
   renderGuideCrop(statusGuideImage, state.guide_star, active);
   const events = state.guide_events ?? [];
   renderGuideLog(byId("guide-events"), events.slice(-4), "No recent guide events");
