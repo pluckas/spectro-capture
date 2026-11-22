@@ -207,7 +207,7 @@ button.target-control:disabled { color: inherit; cursor: default; }
 .sky-reading strong { margin-right: .45rem; color: var(--text); }
 .pointing { display: grid; grid-template-columns: auto 1fr; gap: .25rem .75rem; font-variant-numeric: tabular-nums; }
 .pointing dd { text-align: right; }
-.dashboard { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 3fr); padding: .8rem 0; }
+.dashboard { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 7fr); padding: .8rem 0; }
 .dashboard > section { margin: 0; }
 .dashboard h3 { margin: 0 0 .2rem; font-size: 1rem; }
 .acquisition { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .65rem; padding-right: 1rem; }
