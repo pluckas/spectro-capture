@@ -271,11 +271,11 @@
               <label>Exposure (s) <input name="thor_exp" type="number" min="0" step="any" required></label>
               <label>Frames <input name="thor_count" type="number" min="0" step="1" required></label>
             </fieldset>
-            <div class="batch-commands">
+            <div id="calibration-apply-controls" class="batch-commands" hidden>
               <button id="calibration-save" type="submit">Apply Settings</button>
               <span id="calibration-settings-result" role="status"></span>
             </div>
-            <fieldset class="batch-option-group">
+            <fieldset id="calibration-run-controls" class="batch-option-group" hidden>
               <legend>Run Manual Calibration</legend>
               <label>Run name <input id="calibration-name" type="text" maxlength="60"></label>
               <button id="calibration-run" type="submit">Run Calibration</button>
@@ -295,7 +295,7 @@
             </section>
             <section aria-labelledby="guide-star-title">
               <h2 id="guide-star-title">Fibre Zoom</h2>
-              <div class="batch-commands">
+              <div id="guide-restore-control" class="batch-commands" hidden>
                 <button type="button" data-guide-action="restore" disabled>Move to Fibre</button>
               </div>
               <p id="guide-star-status" role="status">Waiting for a fibre-centred frame…</p>

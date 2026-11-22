@@ -153,10 +153,14 @@ class Monitor:
             elif all(isinstance(value, (int, float)) and math.isfinite(value) for value in (ra, dec)):
                 self.guide_errors.append((ra, dec))
 
-    def snapshot(self):
+    def snapshot(self, *, view_only=False):
         with self.lock:
             now = datetime.now(timezone.utc)
-            return json.dumps(dict(self.state, events=list(self.events),
+            state = dict(self.state)
+            if view_only:
+                state["device_controls"] = []
+                state["view_only"] = True
+            return json.dumps(dict(state, events=list(self.events),
                                    guide_events=list(self.guide_events),
                                    guide_errors=list(self.guide_errors),
                                    server_time=now.isoformat(),

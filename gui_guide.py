@@ -184,10 +184,17 @@ class GuideTab(ttk.Frame):
             self.log(f"Nudge error: {e}")
 
 
+    def request_guide_snapshot(self):
+        if self._snapshot_lock.acquire(blocking=False):
+            threading.Thread(target=self.snapshot_guide_field, daemon=True).start()
+
+    def refresh_public_preview(self):
+        self.request_guide_snapshot()
+        self.after(2000, self.refresh_public_preview)
+
     def run_web_guide_command(self, action, options):
         if action == "snapshot":
-            if self._snapshot_lock.acquire(blocking=False):
-                threading.Thread(target=self.snapshot_guide_field, daemon=True).start()
+            self.request_guide_snapshot()
             return ""
         batch = getattr(self.context, "batch_tab", None)
         if self._busy or getattr(batch, "batch_running", False):

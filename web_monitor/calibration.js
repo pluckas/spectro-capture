@@ -9,6 +9,9 @@ const calibrationRun = byId("calibration-run");
 
 export function renderCalibration(settings) {
   calibrationForm.hidden = !settings;
+  const available = session.availableDevices.includes("calibration");
+  byId("calibration-apply-controls").hidden = !available;
+  byId("calibration-run-controls").hidden = !available;
   if (!settings || session.commandPending) return;
   for (const input of calibrationFields) {
     if (!input.dataset.edited && document.activeElement !== input) input.value = settings[input.name];

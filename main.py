@@ -211,6 +211,7 @@ if __name__ == "__main__":
 
         # Use the local setting unless the launch supplies an override.
         web_server = None
+        public_web_server = None
         web_telemetry_stop = None
         web_host = os.environ.get("SPECTRO_WEB_HOST", cfg.get("web_host"))
         if web_host:
@@ -239,6 +240,11 @@ if __name__ == "__main__":
                 commands.poll(root)
                 app.context.web_monitor = monitor
                 app.context.log(f"Web monitor listening at http://{web_host}:8765/")
+                if cfg.get("web_public_view") is True:
+                    public_web_server = start(monitor, "127.0.0.1", port=8766)
+                    monitor.publish(guide_preview_automatic=True)
+                    app.guide.refresh_public_preview()
+                    app.context.log("Read-only web monitor listening at http://127.0.0.1:8766/")
             except Exception as error:
                 app.context.log(f"Could not start web monitor: {error}")
 
@@ -263,9 +269,10 @@ if __name__ == "__main__":
             finally:
                 if web_telemetry_stop is not None:
                     web_telemetry_stop.set()
-                if web_server is not None:
-                    web_server.shutdown()
-                    web_server.server_close()
+                for server in (public_web_server, web_server):
+                    if server is not None:
+                        server.shutdown()
+                        server.server_close()
                 root.destroy()
 
         root.protocol("WM_DELETE_WINDOW", on_close)

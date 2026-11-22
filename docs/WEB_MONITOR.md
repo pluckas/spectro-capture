@@ -27,6 +27,19 @@ progress and the recent Status log. A **Processed** row means the batch
 worker reached the end of the science target step. Check the Status log
 and output folder for frame-save results.
 
+## Optional public view
+
+With the LAN monitor configured, set `"web_public_view": true` in the same
+local configuration and restart Spectro Capture. This starts a second listener
+at `http://127.0.0.1:8766/` on the Windows host. It serves the dashboard,
+including live status, logs and previews, and rejects all POST requests.
+Visitors can open and collapse panels in their own browser. The public view
+includes the same run-log text, including any local paths it contains.
+
+Point a tunnel running on that host at port 8766 only. Port 8765 is the LAN
+control listener. Remove the setting or set it to false and restart Spectro
+Capture to disable the local public-view listener.
+
 ## Camera controls
 
 Click **Camera** in the browser status strip to connect or disconnect the

@@ -65,7 +65,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/api/status":
-            content_type, body = "application/json", self.monitor.snapshot()
+            content_type = "application/json"
+            body = self.monitor.snapshot(view_only=self.commands is None)
         elif self.path.startswith("/api/guide-star/"):
             body = self.monitor.guide_star_png(self.path.removeprefix("/api/guide-star/"))
             if body is None:

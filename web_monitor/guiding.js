@@ -81,7 +81,9 @@ function renderGuideGraph(samples, guiding) {
 }
 
 export function renderGuiding(state) {
-  guideControls.hidden = !session.availableDevices.includes("guiding");
+  const available = session.availableDevices.includes("guiding");
+  guideControls.hidden = !available;
+  byId("guide-restore-control").hidden = !available;
   guideBusy = state.guide_busy === true;
   byId("guide-message").textContent = state.guide_message ?? "";
   byId("guide-snapshot-status").textContent = state.guide_snapshot_message ?? "";
@@ -108,7 +110,7 @@ export function renderGuiding(state) {
   ].filter(Boolean).join(" · ");
   byId("status-guide-caption").textContent = guideState && guideState !== "Stopped"
     ? state.guide_snapshot_message || (state.guide_star ? "" : state.guide_star_message) || "" : "";
-  if (watchingGuide()
+  if (!state.guide_preview_automatic && watchingGuide()
       && !guideBusy && !session.commandPending && Date.now() >= nextGuideRefresh) {
     nextGuideRefresh = Date.now() + (!guidingPanel.open && (!guideState || guideState === "Stopped") ? 4000 : guideRefreshMs);
     fetch("/api/guiding", {

@@ -42,7 +42,7 @@ async function refresh() {
     session.statusLive = !stale;
     byId("connection").textContent = stale
       ? `Waiting for desktop refresh · ${clock(lastUpdate)}`
-      : `${session.availableDevices.length ? "Controls enabled" : "Read-only"} · Updated ${clock(lastUpdate)}`;
+      : `${state.view_only ? "View only" : session.availableDevices.length ? "Controls enabled" : "Read-only"} · Updated ${clock(lastUpdate)}`;
   } catch {
     session.statusLive = false;
     byId("connection").textContent = `Connection lost · Last update ${clock(lastUpdate)}`;
