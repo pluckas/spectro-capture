@@ -150,12 +150,15 @@
             <h3>Guiding</h3>
             <p id="status-guide-state"></p>
           </header>
-          <div class="guide-detail">
+          <div id="status-guide-detail" class="guide-detail" hidden>
             <ol id="guide-events" aria-label="Recent guiding events"></ol>
-            <img id="status-guide-image" alt="Fibre-centred guide frame" hidden>
-            <figure id="guide-error" hidden>
+            <div class="guide-preview-slot">
+              <img id="status-guide-image" alt="Fibre-centred guide frame" hidden>
+            </div>
+            <figure id="guide-error">
               <figcaption class="guide-legend">Guide error · px <span>RA</span><span>Dec</span><span id="guide-error-scale"></span></figcaption>
-              <canvas id="guide-error-chart" width="600" height="180" role="img" aria-label="Recent RA and Dec guide errors in pixels"></canvas>
+              <p id="guide-error-placeholder" class="guide-placeholder">Waiting for guiding</p>
+              <canvas id="guide-error-chart" width="600" height="180" role="img" aria-label="Recent RA and Dec guide errors in pixels" hidden></canvas>
             </figure>
           </div>
           <p id="status-guide-caption"></p>

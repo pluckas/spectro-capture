@@ -24,10 +24,16 @@ let nextGuideRefresh = 0;
 let guideBusy = false;
 let guideFibreInitialized = false;
 
-function renderGuideLog(list, events) {
+function renderGuideLog(list, events, emptyMessage) {
   const key = JSON.stringify(events);
   if (list.dataset.logKey === key) return;
   list.dataset.logKey = key;
+  if (!events.length && emptyMessage) {
+    const item = element("li", emptyMessage);
+    item.className = "guide-placeholder";
+    list.replaceChildren(item);
+    return;
+  }
   list.replaceChildren(...events.map((event) => {
     const item = document.createElement("li");
     item.append(element("time", clock(event.time)), document.createTextNode(event.message));
@@ -36,14 +42,20 @@ function renderGuideLog(list, events) {
 }
 
 let guideGraphKey;
-function renderGuideGraph(samples, active) {
-  const figure = byId("guide-error");
-  figure.hidden = !active || samples.length < 2;
-  if (figure.hidden) return;
+function renderGuideGraph(samples, guiding) {
+  const canvas = byId("guide-error-chart");
+  const placeholder = byId("guide-error-placeholder");
+  canvas.hidden = !guiding || samples.length < 2;
+  placeholder.hidden = !canvas.hidden;
+  if (canvas.hidden) {
+    placeholder.textContent = guiding ? "Waiting for guide errors" : "Waiting for guiding";
+    byId("guide-error-scale").textContent = "";
+    guideGraphKey = undefined;
+    return;
+  }
   const key = JSON.stringify(samples);
   if (guideGraphKey === key) return;
   guideGraphKey = key;
-  const canvas = byId("guide-error-chart");
   const ctx = canvas.getContext("2d");
   const {width, height} = canvas;
   const limit = Math.max(0.5, ...samples.flat().map(Math.abs));
@@ -80,9 +92,11 @@ export function renderGuiding(state) {
   byId("guide-star-status").textContent = state.guide_star_message ?? "Waiting for a fibre-centred frame…";
   renderGuideCrop(guideStarImage, state.guide_star, guidingPanel.open);
   const guideState = state.guide_app_state;
-  renderGuideCrop(statusGuideImage, state.guide_star, Boolean(guideState && guideState !== "Stopped"));
+  const active = Boolean(guideState && guideState !== "Stopped");
+  byId("status-guide-detail").hidden = !active;
+  renderGuideCrop(statusGuideImage, state.guide_star, active);
   const events = state.guide_events ?? [];
-  renderGuideLog(byId("guide-events"), events.slice(-4));
+  renderGuideLog(byId("guide-events"), events.slice(-4), "No recent guide events");
   if (byId("guide-log-panel").open) renderGuideLog(byId("full-guide-events"), [...events].reverse());
   renderGuideGraph(state.guide_errors ?? [], guideState === "Guiding");
   const status = byId("status-guide-state");

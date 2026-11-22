@@ -56,7 +56,7 @@ class GuideTab(ttk.Frame):
         super().__init__(parent)
         self.context = context
         # Register this Guide tab as the logging target for guider messages
-        self.context.set_guide_log_callback(self.log)
+        self.context.set_guide_log_callback(self._append_log)
         self.host = "localhost"
         self.phd = None
         self._busy = False
@@ -319,6 +319,11 @@ class GuideTab(ttk.Frame):
                 self._snapshot_lock.release()
 
     def log(self, msg):
+        if msg.strip():
+            report(self.context, "guide_log", msg)
+        self._append_log(msg)
+
+    def _append_log(self, msg):
         report(self.context, "publish", guide_message=msg)
         self.status.config(state="normal")
         self.status.insert("end", msg + "\n")
