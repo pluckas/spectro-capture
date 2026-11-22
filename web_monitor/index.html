@@ -131,12 +131,14 @@
       </div>
       <div id="status-details" class="dashboard">
         <section class="acquisition">
-          <h3>Acquisition</h3>
-          <p id="status-target"></p>
-          <p id="status-acquisition">Waiting for status</p>
-          <div class="exposure-progress">
-            <progress id="status-progress" aria-label="Current exposure" hidden></progress>
-            <span id="status-exposure-time"></span>
+          <div class="acquisition-details">
+            <h3>Acquisition</h3>
+            <p id="status-target"></p>
+            <p id="status-acquisition">Waiting for status</p>
+            <div class="exposure-progress">
+              <progress id="status-progress" aria-label="Current exposure" hidden></progress>
+              <span id="status-exposure-time"></span>
+            </div>
           </div>
           <button id="last-image" type="button" data-open-panel="fits-panel" aria-controls="fits-panel" hidden>
             <img id="last-image-thumbnail" alt="">
@@ -144,20 +146,19 @@
           </button>
         </section>
         <section class="guide-overview">
-          <h3>Guiding</h3>
-          <p id="status-guide-state"></p>
+          <header class="guide-overview-heading">
+            <h3>Guiding</h3>
+            <p id="status-guide-state"></p>
+          </header>
           <div class="guide-detail">
             <ol id="guide-events" aria-label="Recent guiding events"></ol>
-            <div class="guide-visuals">
-              <img id="status-guide-image" alt="Fibre-centred guide frame" hidden>
-              <figure id="guide-error" hidden>
-                <figcaption>Guide error · px</figcaption>
-                <canvas id="guide-error-chart" width="300" height="112" role="img" aria-label="Recent RA and Dec guide errors in pixels"></canvas>
-                <div class="guide-legend"><span>RA</span><span>Dec</span><span id="guide-error-scale"></span></div>
-              </figure>
-              <p id="status-guide-caption"></p>
-            </div>
+            <img id="status-guide-image" alt="Fibre-centred guide frame" hidden>
+            <figure id="guide-error" hidden>
+              <figcaption class="guide-legend">Guide error · px <span>RA</span><span>Dec</span><span id="guide-error-scale"></span></figcaption>
+              <canvas id="guide-error-chart" width="600" height="180" role="img" aria-label="Recent RA and Dec guide errors in pixels"></canvas>
+            </figure>
           </div>
+          <p id="status-guide-caption"></p>
         </section>
       </div>
       <details id="recent-panel">
