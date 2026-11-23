@@ -38,7 +38,8 @@ async function refresh() {
     const state = await response.json();
     render(state);
     lastUpdate = state.updated;
-    const stale = !lastUpdate || Date.now() - Date.parse(lastUpdate) > 10000;
+    const statusAge = Date.parse(state.server_time) - Date.parse(lastUpdate);
+    const stale = !Number.isFinite(statusAge) || statusAge < 0 || statusAge > 10_000;
     session.statusLive = !stale;
     byId("connection").textContent = stale
       ? `Waiting for desktop refresh · ${clock(lastUpdate)}`
